@@ -15,6 +15,8 @@ docker compose up -d        # MySQL 실행 (Docker 를 쓰는 경우. 설치형 
 - API 문서(Swagger): http://localhost:8080/swagger-ui.html · 명세 원본: `/v3/api-docs`
 - 연결 확인: `GET /api/health`
 
+설계 문서: [DB(ERD)](docs/erd.md) · [API·핵심 로직](docs/api-spec.md) · [작업 순서·일정](docs/backend-plan.md). 구현하다 설계와 달라지면 **코드와 문서를 같은 PR에서** 맞춘다.
+
 ## 패키지 구조 (`src/main/java/com/aidisciple`)
 | 폴더 | 역할 |
 |---|---|
@@ -35,6 +37,9 @@ docker compose up -d        # MySQL 실행 (Docker 를 쓰는 경우. 설치형 
 10. **AI 결과는 그대로 믿지 않는다.** LLM 출력은 코드로 검증한 뒤에만 DB에 반영한다. (제안서의 핵심 원칙)
 11. **학생에게 숨겨야 하는 것**(문제 은행의 문항·정답·개념 목록)은 학생용 응답 DTO에 아예 필드로 두지 않는다.
 12. **API 경로는 `/api/...`**로 시작하고, 인증이 필요 없는 경로는 `global/config/SecurityConfig`의 `PUBLIC_PATHS`에서만 추가한다.
+13. **AI 호출·외부 네트워크 호출은 DB 트랜잭션 안에서 하지 않는다.** 호출 전에 읽고, 호출 뒤에 짧은 트랜잭션으로 저장한다. (커넥션 고갈·락 장기 보유 방지)
+14. **비동기 작업의 상태는 항상 DB에 남긴다.** 동시에 겹칠 수 있는 곳(가르치기 턴, 배틀 준비, Elo)은 `if`만 믿지 말고 DB의 UNIQUE 제약이나 행 잠금으로 막는다.
+15. **모든 `{id}` 경로는 소유·참가 여부를 서버가 검사한다.** (남의 제자·배틀·노트에 접근할 수 없어야 한다)
 
 ## 코드 스타일
 - 들여쓰기는 탭(Java), 2칸 스페이스(yml). `.editorconfig`를 따른다.
