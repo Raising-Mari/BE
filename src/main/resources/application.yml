@@ -24,11 +24,32 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  # 터널(Cloudflare 등) 뒤에서 IP 별 사용량 제한이 모든 요청을 한 IP 로 세지 않게 하려면 FRAMEWORK 로 둔다.
+  # 포트가 터널로만 열려 있을 때만 켠다. 직접 노출된 서버에서는 X-Forwarded-For 를 위조할 수 있다.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
 
 app:
   cors:
     # 쉼표로 여러 개 지정. FE 개발 서버 주소를 기본값으로 둔다.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  auth:
+    google-client-id: ${GOOGLE_CLIENT_ID:}
+    # 32바이트 이상. 비어 있으면 서버가 뜨지 않는다. 바꾸면 모든 로그인이 풀린다.
+    jwt-secret: ${JWT_SECRET:}
+    jwt-expires-days: 7
+  rate-limit:
+    google-login:
+      limit: 10
+      window: 1m
+    teaching-message:
+      limit: 12
+      window: 1m
+    battle-create:
+      limit: 5
+      window: 10m
+    material-upload:
+      limit: 10
+      window: 1h
 
 management:
   endpoints:

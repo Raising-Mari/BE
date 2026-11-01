@@ -33,6 +33,14 @@ dependencies {
 	implementation 'org.flywaydb:flyway-mysql'
 	// Swagger UI + /v3/api-docs (FE 가 openapi-typescript 로 타입을 생성하는 원본)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
+	// 액세스 토큰(JWT) 발급·검증. JSON 처리는 Jackson 2 를 끌어오지 않도록 gson 구현을 쓴다. (Boot 4 는 Jackson 3)
+	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+	runtimeOnly 'io.jsonwebtoken:jjwt-gson:0.13.0'
+	// Google ID 토큰 검증 (서명·aud·exp·iss)
+	implementation 'com.google.api-client:google-api-client:2.9.2'
+	// 레이트 리미터 카운터 캐시
+	implementation 'com.github.ben-manes.caffeine:caffeine'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'
