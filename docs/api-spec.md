@@ -496,4 +496,4 @@
 
 **HTTP 오류가 아닌 탈락 사유**: 노트 변경 검증(11-1)에서 걸린 변경은 T-01을 실패시키지 않고 `rejected_note_changes.failed_checks_json`에 `EVIDENCE_NOT_IN_MESSAGE` `LOW_OVERLAP` `NEGATION_MISMATCH` `LENGTH_INVALID` `NOTE_LIMIT_REACHED` `TARGET_NOT_FOUND` 중 하나로 남고, T-01 응답에는 `rejectedCount`(상한이면 `noteLimitReached`)로만 나간다.
 
-`global/error/ErrorCode`에는 `RATE_LIMITED`(429)와 `AI_*`처럼 현재 없는 상태 코드가 필요하다.
+`global/error/ErrorCode`에는 공통 `RATE_LIMITED`(429)와 인증 `AUTH_GOOGLE_TOKEN_INVALID`·`AUTH_EMAIL_DOMAIN_NOT_ALLOWED`가 추가됐다(2026-11-02, WP2-A). 나머지 인증 코드는 가입 기능(WP3)에서, `AI_*`는 AI 어댑터(WP2-B)에서 추가한다. 없는 경로·지원하지 않는 메서드·필수 파라미터 누락은 각각 `NOT_FOUND`·`INVALID_INPUT`으로 응답한다.
