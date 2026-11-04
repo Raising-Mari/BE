@@ -57,8 +57,8 @@ app:
       gemini:
         # 비어 있으면 서버는 뜨고, AI 를 부르는 순간 AI_UNAVAILABLE 이 난다.
         api-key: ${GEMINI_API_KEY:}
-        # 모델 이름. 조장과 확정할 값 (backend-plan D-11: Flash 계열)
-        model: ${GEMINI_MODEL:gemini-2.5-flash}
+        # 모델 이름. 스모크 테스트(2026-11-04)로 확인: flash-latest 는 30초 초과가 잦아 flash-lite 로 시작한다 (D-11: Flash 계열)
+        model: ${GEMINI_MODEL:gemini-flash-lite-latest}
         timeout-seconds: 30
         max-output-tokens: 2048
         # 5xx·타임아웃만 재시도. 첫 대기 1초, 이후 2배. 429 는 재시도하지 않는다.
