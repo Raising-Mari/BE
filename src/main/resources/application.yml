@@ -51,6 +51,20 @@ app:
       limit: 10
       window: 1h
 
+  ai:
+      # 전역 AI 동시 호출 수. 무료 티어 한도를 지키려고 서버 전체에서 이 수만큼만 동시에 부른다.
+      max-concurrency: 2
+      gemini:
+        # 비어 있으면 서버는 뜨고, AI 를 부르는 순간 AI_UNAVAILABLE 이 난다.
+        api-key: ${GEMINI_API_KEY:}
+        # 모델 이름. 조장과 확정할 값 (backend-plan D-11: Flash 계열)
+        model: ${GEMINI_MODEL:gemini-2.5-flash}
+        timeout-seconds: 30
+        max-output-tokens: 2048
+        # 5xx·타임아웃만 재시도. 첫 대기 1초, 이후 2배. 429 는 재시도하지 않는다.
+        max-attempts: 3
+        backoff-millis: 1000
+
 management:
   endpoints:
     web:
