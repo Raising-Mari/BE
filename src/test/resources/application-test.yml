@@ -2,3 +2,8 @@ spring:
   datasource:
     # 개발용 DB(disciple)와 분리된 테스트 전용 DB. docker-compose 가 처음 뜰 때 만들어 준다.
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:disciple}_test?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC
+
+app:
+  auth:
+    # 테스트 전용 가짜 키. 실제 서버의 JWT_SECRET 과 무관하다.
+    jwt-secret: test-only-secret-key-not-for-production-0123456789

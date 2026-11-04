@@ -17,7 +17,11 @@ Spring Boot 4 · Java 21 · MySQL · Gradle
 ```bash
 cp .env.example .env
 ```
-`.env`를 열어 `DB_PASSWORD`, `DB_ROOT_PASSWORD`를 원하는 값으로 바꿉니다. (`.env`는 git에 올라가지 않습니다)
+`.env`를 열어 `DB_PASSWORD`, `DB_ROOT_PASSWORD`를 원하는 값으로 바꾸고, **`JWT_SECRET`에 32바이트 이상의 임의 문자열**을 넣습니다. (`.env`는 git에 올라가지 않습니다)
+```bash
+openssl rand -base64 48
+```
+`JWT_SECRET`이 비어 있으면 서버가 뜨지 않습니다. `GOOGLE_CLIENT_ID`는 실제 Google 로그인을 쓸 때만 필요합니다.
 
 ### 2. DB 준비 — 방법 A: Docker
 ```bash
@@ -31,6 +35,10 @@ docker compose up -d
 ### 3. 서버 실행
 ```bash
 ./gradlew bootRun
+```
+Google 없이 개발할 때는 `local` 프로필로 실행합니다. 개발용 계정(`dev1@mju.ac.kr`, `dev2@mju.ac.kr`, `admin@mju.ac.kr`)이 자동으로 만들어지고, `POST /api/auth/dev-login`에 `{ "email": "dev1@mju.ac.kr" }`을 보내면 액세스 토큰을 받습니다. 운영·시연 서버는 프로필을 지정하지 않으므로 이 경로가 없습니다.
+```bash
+SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
 - 서버: http://localhost:8080
 - 연결 확인: http://localhost:8080/api/health
