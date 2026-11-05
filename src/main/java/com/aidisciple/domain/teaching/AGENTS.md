@@ -15,3 +15,10 @@
 6. 제자는 3메시지마다 "왜 그런가요?", "어떻게 하나요?"처럼 되묻는다. 횟수는 서버가 센다 (모델에게 맡기지 않는다).
 7. 제자는 학생이 가르친 것만 안다. 프롬프트로 "모르는 척"을 시켜도 지식이 샐 수 있으므로, **노트가 빈 제자로 누출 시험**을 하는 코드는 `question`과 이 도메인이 공유한다.
 8. 노트 검증 로직은 순수 클래스로 만들고, 통과·탈락 사례를 단위 테스트로 충분히 쌓는다. (예: 근거 없는 변경, 부정 뒤집기, 학생이 말하지 않은 개념 추가)
+
+## 구조 (6-A까지 구현)
+- `logic/` — DB·AI를 모르는 순수 클래스. `NoteChangeVerifier`(op별 검증, 자동 병합·확인 카드 제안, 상한 검사)와 그 입출력 값(`ProposedNoteChange`, `ActiveNote`, `AcceptedChange`, `RejectedChange`, `VerificationResult`, `NoteCheckFailure`).
+- `service/TeachingTurnEngine` — 한 턴에 AI를 한 번 부르고 검증기를 돌린다. DB를 읽거나 쓰지 않는다. 호출하는 서비스(6-B)는 이 엔진을 **트랜잭션 밖에서** 부르고, 돌려받은 `TurnOutcome`을 짧은 트랜잭션에서 저장한다.
+- `config/TeachingProperties` — `app.teaching.*` 기준값. 숫자를 코드에 흩뿌리지 않는다.
+- 프롬프트는 `resources/prompts/teaching-turn.v1.txt`. 바꾸려면 `v2`를 새로 만들고 `TeachingTurnEngine.PROMPT_VERSION`을 올린다.
+- `NoteCheckFailure`의 이름은 `rejected_note_changes.failed_checks_json`에 그대로 저장되므로 바꾸지 않는다.
