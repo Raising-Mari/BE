@@ -19,6 +19,7 @@ public enum ErrorCode {
 	CONFLICT(HttpStatus.CONFLICT, "이미 처리되었거나 충돌하는 요청입니다."),
 	RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
+	NOT_IMPLEMENTED(HttpStatus.NOT_IMPLEMENTED, "아직 구현되지 않은 API입니다."),
 
 	AUTH_GOOGLE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Google 로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."),
 	AUTH_EMAIL_DOMAIN_NOT_ALLOWED(HttpStatus.FORBIDDEN, "학교 Google 계정으로만 로그인할 수 있습니다."),
