@@ -36,7 +36,7 @@ docker compose up -d
 ```bash
 ./gradlew bootRun
 ```
-Google 없이 개발할 때는 `local` 프로필로 실행합니다. 개발용 계정(`dev1@mju.ac.kr`, `dev2@mju.ac.kr`, `admin@mju.ac.kr`)이 자동으로 만들어지고, `POST /api/auth/dev-login`에 `{ "email": "dev1@mju.ac.kr" }`을 보내면 액세스 토큰을 받습니다. 운영·시연 서버는 프로필을 지정하지 않으므로 이 경로가 없습니다.
+Google 없이 개발할 때는 `local` 프로필로 실행합니다. 개발용 계정(`dev1@mju.ac.kr`, `dev2@mju.ac.kr`, `admin@mju.ac.kr`)이 자동으로 만들어지고, `POST /api/auth/dev-login`에 `{ "email": "dev1@mju.ac.kr" }`을 보내면 액세스 토큰을 받습니다. 가입하지 않은 이메일을 보내면 가입 토큰(`registered: false`)이 나와서 가입(`POST /api/auth/signup`)까지 Google 없이 시험할 수 있습니다. 운영·시연 서버는 프로필을 지정하지 않으므로 이 경로가 없습니다. 관리자 계정이 필요하면 `.env`의 `ADMIN_EMAILS`에 메일을 적고 그 메일로 가입합니다.
 ```bash
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```

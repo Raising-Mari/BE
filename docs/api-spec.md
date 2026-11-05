@@ -60,6 +60,19 @@
 
 **A-06** 응답 `{ "id", "nickname", "emailMasked": "a***@mju.ac.kr", "school": {"id","name"}, "department": {"id","name","collegeName"}, "role" }`
 
+**A-07** 요청 `{ "nickname"?, "departmentId"? }` — 바꿀 값만 보낸다. 둘 다 없으면 `INVALID_INPUT`. 닉네임 규칙·오류 코드는 A-03과 같고, 응답은 A-06과 같다.
+
+**구현 메모 (2026-11-06, WP3)** — 문서가 정하지 않았던 부분을 이렇게 정했다.
+- 가입 토큰(10분)은 Google이 확인한 `sub`·이메일·학교를 담는다. 가입 요청은 이 값만 쓴다. "1회용"은 토큰에 상태를 두지 않고 `users.google_sub` UNIQUE와 서비스의 중복 검사로 지킨다: 이미 가입한 계정의 가입 토큰은 `AUTH_SIGNUP_TOKEN_INVALID`.
+- 학교는 ID 토큰의 `hd`로 `schools.email_domain`에서 찾는다. `hd`가 없거나(개인 계정) 등록되지 않은 도메인이면 `AUTH_EMAIL_DOMAIN_NOT_ALLOWED`. 이메일 인증이 안 된 계정은 `AUTH_GOOGLE_TOKEN_INVALID`.
+- 가입 검사 순서: 가입 토큰 → 약관 → 닉네임 형식 → 학과(가입 토큰의 학교 소속) → 이미 가입한 토큰 → 닉네임 중복. 학과가 없거나 다른 학교 것이면 `INVALID_INPUT`.
+- 닉네임은 앞뒤 공백을 자르고 대소문자 구분 없이 유일하다. `admin`·`관리자`·`운영자`·`운영진`이 들어간 이름과 `system`·`시스템` 단독은 막는다. 욕설 사전은 아직 없다.
+- A-04는 형식이 틀린 닉네임도 오류 없이 `{ "available": false }`로 답한다(입력하는 동안 부르는 API라서).
+- 관리자는 `ADMIN_EMAILS`(쉼표 구분)에 적힌 메일로 가입할 때 `ADMIN`이 된다. 이미 가입한 계정의 역할은 바꾸지 않는다. 역할은 액세스 토큰에 들어가므로 바뀌어도 토큰이 만료(7일)될 때까지 이전 역할로 통한다.
+- A-06은 토큰이 유효해도 사용자가 없거나 탈퇴했으면 `UNAUTHORIZED`다.
+- A-09(`dev-login`)의 응답은 A-01과 같은 모양이다: 가입한 계정이면 액세스 토큰, 아니면 가입 토큰(`registered=false`)이라 Google 없이 가입 화면까지 시험할 수 있다. 개발용 계정(`dev1@mju.ac.kr`, `dev2@mju.ac.kr`, `admin@mju.ac.kr`)은 `local` 프로필에서 자동으로 만들어진다.
+- A-08(탈퇴, P2)은 만들지 않았다.
+
 ---
 
 ## 2. 과목·단원·제자 (`domain/course`, `domain/teaching`)

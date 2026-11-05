@@ -23,6 +23,10 @@ public enum ErrorCode {
 
 	AUTH_GOOGLE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Google 로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."),
 	AUTH_EMAIL_DOMAIN_NOT_ALLOWED(HttpStatus.FORBIDDEN, "학교 Google 계정으로만 로그인할 수 있습니다."),
+	AUTH_SIGNUP_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "가입 시간이 지났거나 이미 사용한 가입 정보입니다. Google 로그인부터 다시 해 주세요."),
+	AUTH_NICKNAME_TAKEN(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
+	AUTH_NICKNAME_INVALID(HttpStatus.BAD_REQUEST, "닉네임은 2~12자의 한글, 영문, 숫자, 밑줄(_)만 쓸 수 있습니다."),
+	AUTH_TERMS_REQUIRED(HttpStatus.BAD_REQUEST, "이용약관과 개인정보 처리에 동의해야 가입할 수 있습니다."),
 
 	AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 사용량이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 시도해 주세요."),
 	AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),

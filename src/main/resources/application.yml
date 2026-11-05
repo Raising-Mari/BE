@@ -37,6 +37,9 @@ app:
     # 32바이트 이상. 비어 있으면 서버가 뜨지 않는다. 바꾸면 모든 로그인이 풀린다.
     jwt-secret: ${JWT_SECRET:}
     jwt-expires-days: 7
+  admin:
+    # 쉼표로 구분한 Google 계정 메일. 이 메일로 가입하면 ADMIN 이 된다. 이미 가입한 계정은 바뀌지 않는다.
+    emails: ${ADMIN_EMAILS:}
   rate-limit:
     google-login:
       limit: 10

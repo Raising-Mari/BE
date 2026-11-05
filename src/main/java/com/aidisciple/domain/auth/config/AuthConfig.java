@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import com.aidisciple.domain.auth.security.JwtAuthenticationFilter;
 
 @Configuration
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, AdminProperties.class})
 public class AuthConfig {
 
 	/**

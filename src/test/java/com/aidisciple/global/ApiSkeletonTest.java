@@ -49,12 +49,6 @@ class ApiSkeletonTest {
 	}
 
 	@Test
-	void 학과_목록은_로그인_없이_부를_수_있다() throws Exception {
-		mockMvc.perform(get("/api/departments"))
-			.andExpect(status().isNotImplemented());
-	}
-
-	@Test
 	void 요청_값이_틀리면_구현전이어도_400을_준다() throws Exception {
 		mockMvc.perform(post("/api/battles")
 				.header("Authorization", "Bearer " + studentToken())
