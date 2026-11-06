@@ -15,7 +15,7 @@
 | 시각 | ISO-8601 UTC 문자열 (`2026-11-02T01:23:45.678Z`) |
 | ID | 숫자(Long). **모든 ID 경로는 소유·참가 여부를 서버가 검사한다** (남의 제자·배틀·노트 접근 방지) |
 | 성공 응답 | DTO를 감싸지 않고 그대로. 생성은 `201`, 비동기 접수는 `202`, 본문 없음은 `204` |
-| 오류 응답 | `{ "code": "BATTLE_ROOM_FULL", "message": "...", "violations": [{"field","reason"}] }` |
+| 오류 응답 | `{ "code": "BATTLE_ROOM_FULL", "message": "...", "violations": [{"field","reason"}], "details": {…} }` — `details`는 FE가 오류 뒤에 이어서 쓸 값이 있을 때만 있다(예: `COURSE_DUPLICATE`의 `existingCourseId`). 없으면 필드 자체가 없다 |
 | 페이지네이션 | 요청 `page`(0부터)·`size`(기본 20, 최대 50). 응답 `{ "items": [], "page": 0, "size": 20, "totalElements": 0, "hasNext": false }` |
 | 우선순위 | **P0** 핵심 루프(없으면 시연 불가) · **P1** 제안서가 약속한 범위(11/12 목표) · **P2** 여유 있을 때 |
 | WP | [backend-plan.md](backend-plan.md)의 작업 묶음 번호 (표의 "6"은 6-A·6-B를 합친 것) |
@@ -99,6 +99,18 @@
 - 주차는 **과목 안에서 공유**된다. 같은 이름(정규화)은 중복 생성되지 않는다 (`UNIT_DUPLICATE`, 기존 id 포함). 자료를 먼저 올리고 나서 주차를 고르거나 새로 만들어도 된다.
 
 **D-01** `{ "name", "characterKey"? }` → `201`. 이미 있으면 `409 DISCIPLE_ALREADY_EXISTS`.
+
+**구현 메모 (2026-11-06, WP4)** — 문서가 정하지 않았던 부분을 이렇게 정했다.
+- **과목은 학교 안에서만 보인다.** 다른 학교의 과목 id는 없는 과목과 똑같이 `404 NOT_FOUND`다(주차·제자 API도 같다). 검색은 내 학교의 `ACTIVE` 과목만 준다(보관된 과목은 검색에서만 빠진다).
+- C-01: `keyword`는 과목명의 일부이고 공백·대소문자를 무시한다(`자료 구조`로 `자료구조`를 찾는다). `%`·`_`는 글자 그대로 찾는다. 정렬은 학기 최신순 → 이름순이다. 크기는 기본 20, 최대 50(규약).
+- C-02: 학기는 `2026-2`처럼 **연도 4자리-숫자 1자리**(1~9)만 받는다(`INVALID_INPUT`). 형식이 제각각이면 같은 과목이 학기만 다르게 적혀 중복 판정이 무너진다. 학과는 내 학교의 학과여야 한다. 중복(`COURSE_DUPLICATE`)이면 오류 본문에 `details.existingCourseId`가 있다. 중복 판정은 과목명의 **공백을 모두 없애고 소문자로 만든 값**(문장부호는 유지: `C++`과 `C`는 다른 과목)과 학기로 한다. 만든 과목은 자동으로 수강 등록되지 않는다(제자를 만들어야 한다).
+- C-03: 최근에 만든 제자의 과목이 먼저 온다. C-04의 `hasMyDisciple`은 내 제자가 있는지다.
+- C-05: 숫자를 값으로 비교한 순서다(`2주차`가 `10주차`보다 앞). **`materialCount`·`myNoteCount`·`battleReady`는 자료(WP5)·노트(WP6)·문제 은행(WP7)이 들어오기 전까지 항상 `0`·`0`·`false`다.** 그 기능이 생기면 각 도메인 서비스를 불러 채운다(FE가 이 필드를 쓰는 화면은 그때까지 빈 값으로 보인다).
+- C-06: 이름의 앞뒤 공백을 자르고, 공백만 다른 이름(`3주차`/`3 주차`)은 중복이다. 중복이면 `details.existingUnitId`가 있다. 주차를 만드는 데 제자는 필요 없다.
+- D-01: 이름은 1~30자이고, `characterKey`가 비었거나 공백뿐이면 없는 것으로 저장한다. 같은 학생이 같은 과목에 두 번 만들 수 없다(DB UNIQUE). D-02는 제자가 없으면 `404 DISCIPLE_NOT_FOUND`다.
+- 동시에 같은 과목·주차·제자를 만들어 DB UNIQUE에 걸린 경우에도 같은 중복 코드로 답하지만, 이때는 `details`가 없다.
+- C-07(주차 이름 수정)·D-03(제자 수정)은 P2라 만들지 않았다.
+
 
 ---
 
@@ -513,7 +525,7 @@
 | 배틀 | `BATTLE_ROOM_NOT_FOUND`(404) `BATTLE_ROOM_FULL`(409) `BATTLE_ROOM_EXPIRED`(410) `BATTLE_SELF_JOIN`(400) `BATTLE_ALREADY_ACTIVE`(409) `BATTLE_DISCIPLE_REQUIRED`(409) `BATTLE_QUESTION_BANK_NOT_READY`(409) `BATTLE_NOT_ENOUGH_QUESTIONS`(409) `BATTLE_NOT_FINISHED`(409) `BATTLE_NOTES_REQUIRED`(409) `PRACTICE_NOTHING_TO_REVIEW`(409) `PRACTICE_ANSWERS_REVEALED`(409) |
 | 복기·신고 | `REVIEW_NOTES_NOT_PUBLIC`(403) `REVIEW_ALREADY_SUBMITTED`(409) `REPORT_DUPLICATE`(409) |
 
-`BATTLE_NOTES_REQUIRED`는 입장(B-02)에서 오류 본문에 `unit`(`id`,`title`)과 `courseId`를 추가로 담는다.
+`BATTLE_NOTES_REQUIRED`는 입장(B-02)에서 오류 본문에 `unit`(`id`,`title`)과 `courseId`를 추가로 담는다. 오류 본문의 `details`(예: `COURSE_DUPLICATE`·`UNIT_DUPLICATE`의 기존 id)는 위 규약의 선택 필드다.
 
 **HTTP 오류가 아닌 탈락 사유**: 노트 변경 검증(11-1)에서 걸린 변경은 T-01을 실패시키지 않고 `rejected_note_changes.failed_checks_json`에 `EVIDENCE_NOT_IN_MESSAGE` `LOW_OVERLAP` `NEGATION_MISMATCH` `LENGTH_INVALID` `NOTE_LIMIT_REACHED` `TARGET_NOT_FOUND` 중 하나로 남고, T-01 응답에는 `rejectedCount`(상한이면 `noteLimitReached`)로만 나간다.
 
