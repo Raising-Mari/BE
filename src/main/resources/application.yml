@@ -67,6 +67,15 @@ app:
         # 5xx·타임아웃만 재시도. 첫 대기 1초, 이후 2배. 429 는 재시도하지 않는다.
         max-attempts: 3
         backoff-millis: 1000
+  material:
+    # 붙여넣은 글의 글자 수 상한 (api-spec M-02). 넘으면 MATERIAL_TOO_LARGE.
+    max-text-chars: 100000
+    # PDF 에서 뽑은 글자 수 상한. 넘으면 처리 결과가 FAILED/TOO_LARGE.
+    max-extracted-chars: 500000
+    # PDF 쪽수 상한. 넘으면 FAILED/TOO_LARGE.
+    max-pages: 500
+    # 뽑은 글자(공백 제외)가 이보다 적으면 스캔본 등으로 보고 FAILED/NO_TEXT.
+    min-text-chars: 30
   teaching:
     # ADD 노트 검증: content 의 글자 3-gram 이 학생 메시지에 포함되는 비율의 하한 (초기값, 시연 세트로 조정)
     min-overlap: 0.6

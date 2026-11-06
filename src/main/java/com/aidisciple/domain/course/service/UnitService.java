@@ -1,8 +1,10 @@
 package com.aidisciple.domain.course.service;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -68,6 +70,19 @@ public class UnitService {
 		} catch (DataIntegrityViolationException e) {
 			// 동시에 같은 이름을 만든 두 요청 중 늦은 쪽
 			throw new BusinessException(ErrorCode.UNIT_DUPLICATE);
+		}
+	}
+
+	/**
+	 * 다른 도메인(자료 등)이 "이 주차들이 모두 이 과목 소속인가"를 확인할 때 쓴다. 하나라도 아니거나 없으면 UNIT_NOT_IN_COURSE.
+	 */
+	public void requireAllInCourse(long courseId, Collection<Long> unitIds) {
+		if (unitIds.isEmpty()) {
+			return;
+		}
+		Set<Long> requested = Set.copyOf(unitIds);
+		if (unitRepository.findByCourseIdAndIdIn(courseId, requested).size() != requested.size()) {
+			throw new BusinessException(ErrorCode.UNIT_NOT_IN_COURSE);
 		}
 	}
 

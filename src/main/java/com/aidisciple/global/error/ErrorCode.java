@@ -34,6 +34,10 @@ public enum ErrorCode {
 	DISCIPLE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 과목에는 이미 제자가 있습니다."),
 	DISCIPLE_NOT_FOUND(HttpStatus.NOT_FOUND, "이 과목에 제자가 없습니다. 먼저 제자를 만들어 주세요."),
 
+	MATERIAL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "자료 사용 권한과 개인정보 제외에 동의해야 올릴 수 있습니다."),
+	MATERIAL_INVALID_FILE(HttpStatus.BAD_REQUEST, "PDF 파일만 올릴 수 있습니다."),
+	MATERIAL_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "자료가 너무 큽니다. 파일은 20MB, 붙여넣은 글은 10만 자까지 올릴 수 있습니다."),
+
 	AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 사용량이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 시도해 주세요."),
 	AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	AI_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "AI 응답이 늦어지고 있습니다. 다시 시도해 주세요."),

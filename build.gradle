@@ -41,6 +41,8 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-gson:0.13.0'
 	// Google ID 토큰 검증 (서명·aud·exp·iss)
 	implementation 'com.google.api-client:google-api-client:2.9.2'
+	// PDF 텍스트 추출 (material 도메인의 PdfTextExtractor 에서만 쓴다)
+	implementation 'org.apache.pdfbox:pdfbox:3.0.8'
 	// 레이트 리미터 카운터 캐시
 	implementation 'com.github.ben-manes.caffeine:caffeine'
 	compileOnly 'org.projectlombok:lombok'
