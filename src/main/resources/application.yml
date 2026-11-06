@@ -64,6 +64,17 @@ app:
         # 5xx·타임아웃만 재시도. 첫 대기 1초, 이후 2배. 429 는 재시도하지 않는다.
         max-attempts: 3
         backoff-millis: 1000
+  teaching:
+    # ADD 노트 검증: content 의 글자 3-gram 이 학생 메시지에 포함되는 비율의 하한 (초기값, 시연 세트로 조정)
+    min-overlap: 0.6
+    # 프롬프트에 넣는 최근 대화 수. 맥락이 모자라면 늘린다.
+    recent-messages: 10
+    # 주차당 ACTIVE 노트 상한. 유사도 >= merge-auto-threshold 로 병합되는 ADD, UPDATE, REMOVE 는 상한과 무관하다.
+    max-notes-per-unit: 60
+    merge-auto-threshold: 0.9
+    merge-suggest-threshold: 0.75
+    # 프롬프트에 넣는 현재 노트의 글자 수 상한 (최신 노트부터 채운다). 유사도 비교는 이 한도와 무관하게 전체 노트로 한다.
+    prompt-notes-max-chars: 6000
 
 management:
   endpoints:
