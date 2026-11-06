@@ -10,4 +10,7 @@ public interface SchoolRepository extends JpaRepository<School, Long> {
 
 	Optional<School> findByCode(String code);
 
+	/** Google ID 토큰의 {@code hd} 로 학교를 찾는다. 컬럼 정렬 규칙이 대소문자를 구분하지 않는다. */
+	Optional<School> findByEmailDomain(String emailDomain);
+
 }

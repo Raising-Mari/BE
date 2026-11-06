@@ -85,4 +85,12 @@ public class User extends BaseTimeEntity {
 		this.lastLoginAt = now;
 	}
 
+	public void changeNickname(String nickname) {
+		this.nickname = nickname;
+	}
+
+	public void changeDepartment(Long departmentId) {
+		this.departmentId = departmentId;
+	}
+
 }
