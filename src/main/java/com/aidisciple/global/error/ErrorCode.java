@@ -28,6 +28,12 @@ public enum ErrorCode {
 	AUTH_NICKNAME_INVALID(HttpStatus.BAD_REQUEST, "닉네임은 2~12자의 한글, 영문, 숫자, 밑줄(_)만 쓸 수 있습니다."),
 	AUTH_TERMS_REQUIRED(HttpStatus.BAD_REQUEST, "이용약관과 개인정보 처리에 동의해야 가입할 수 있습니다."),
 
+	COURSE_DUPLICATE(HttpStatus.CONFLICT, "같은 학기에 같은 이름의 과목이 이미 있습니다."),
+	UNIT_DUPLICATE(HttpStatus.CONFLICT, "같은 이름의 주차가 이미 있습니다."),
+	UNIT_NOT_IN_COURSE(HttpStatus.BAD_REQUEST, "이 과목의 주차가 아닙니다."),
+	DISCIPLE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 과목에는 이미 제자가 있습니다."),
+	DISCIPLE_NOT_FOUND(HttpStatus.NOT_FOUND, "이 과목에 제자가 없습니다. 먼저 제자를 만들어 주세요."),
+
 	AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 사용량이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 시도해 주세요."),
 	AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	AI_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "AI 응답이 늦어지고 있습니다. 다시 시도해 주세요."),

@@ -25,7 +25,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(BusinessException.class)
 	ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
 		ErrorCode code = e.getErrorCode();
-		return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code, e.getMessage()));
+		return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code, e.getMessage(), e.getDetails()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

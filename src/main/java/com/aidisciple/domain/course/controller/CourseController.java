@@ -5,6 +5,7 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,19 +23,23 @@ import com.aidisciple.domain.course.dto.CreateUnitRequest;
 import com.aidisciple.domain.course.dto.DiscipleResponse;
 import com.aidisciple.domain.course.dto.MyCourseResponse;
 import com.aidisciple.domain.course.dto.UnitResponse;
-import com.aidisciple.global.api.NotImplemented;
+import com.aidisciple.domain.course.service.CourseService;
+import com.aidisciple.domain.course.service.DiscipleService;
+import com.aidisciple.domain.course.service.UnitService;
 import com.aidisciple.global.api.PageResponse;
 import com.aidisciple.global.security.AuthUser;
 import com.aidisciple.global.security.CurrentUser;
 
-/**
- * 2절 과목·주차·제자 (WP4). 제자 만들기가 곧 수강 등록이고 경로도 과목 아래에 있어서 D-01·D-02 를 여기에 둔다.
- * 제자 엔티티를 어느 도메인에 둘지는 WP4 구현 때 정한다.
- */
+/** 2절 과목·주차·제자 (WP4). 제자 만들기가 곧 수강 등록이고 경로도 과목 아래에 있어서 D-01·D-02 를 여기에 둔다. */
 @Tag(name = "과목·주차·제자")
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class CourseController {
+
+	private final CourseService courseService;
+	private final UnitService unitService;
+	private final DiscipleService discipleService;
 
 	@Operation(summary = "C-01 내 학교 과목 검색")
 	@GetMapping("/courses")
@@ -45,35 +50,35 @@ public class CourseController {
 		@RequestParam(required = false) Integer page,
 		@RequestParam(required = false) Integer size
 	) {
-		return NotImplemented.yet();
+		return courseService.search(user.userId(), keyword, departmentId, page, size);
 	}
 
-	@Operation(summary = "C-02 과목 만들기 (같은 과목이 있으면 409 COURSE_DUPLICATE)")
+	@Operation(summary = "C-02 과목 만들기 (같은 과목이 있으면 409 COURSE_DUPLICATE, details.existingCourseId)")
 	@PostMapping("/courses")
 	@ResponseStatus(HttpStatus.CREATED)
 	public CourseResponse createCourse(@CurrentUser AuthUser user, @Valid @RequestBody CreateCourseRequest request) {
-		return NotImplemented.yet();
+		return courseService.create(user.userId(), request);
 	}
 
 	@Operation(summary = "C-03 내 과목 (제자가 있는 과목)")
 	@GetMapping("/me/courses")
 	public List<MyCourseResponse> myCourses(@CurrentUser AuthUser user) {
-		return NotImplemented.yet();
+		return courseService.myCourses(user.userId());
 	}
 
 	@Operation(summary = "C-04 과목 상세")
 	@GetMapping("/courses/{courseId}")
 	public CourseResponse getCourse(@CurrentUser AuthUser user, @PathVariable Long courseId) {
-		return NotImplemented.yet();
+		return courseService.get(user.userId(), courseId);
 	}
 
 	@Operation(summary = "C-05 주차 목록 + 내 현황")
 	@GetMapping("/courses/{courseId}/units")
 	public List<UnitResponse> units(@CurrentUser AuthUser user, @PathVariable Long courseId) {
-		return NotImplemented.yet();
+		return unitService.list(user.userId(), courseId);
 	}
 
-	@Operation(summary = "C-06 주차 만들기 (같은 이름이 있으면 409 UNIT_DUPLICATE)")
+	@Operation(summary = "C-06 주차 만들기 (같은 이름이 있으면 409 UNIT_DUPLICATE, details.existingUnitId)")
 	@PostMapping("/courses/{courseId}/units")
 	@ResponseStatus(HttpStatus.CREATED)
 	public UnitResponse createUnit(
@@ -81,7 +86,7 @@ public class CourseController {
 		@PathVariable Long courseId,
 		@Valid @RequestBody CreateUnitRequest request
 	) {
-		return NotImplemented.yet();
+		return unitService.create(user.userId(), courseId, request);
 	}
 
 	@Operation(summary = "D-01 제자 만들기 = 수강 등록 (이미 있으면 409 DISCIPLE_ALREADY_EXISTS)")
@@ -92,13 +97,13 @@ public class CourseController {
 		@PathVariable Long courseId,
 		@Valid @RequestBody CreateDiscipleRequest request
 	) {
-		return NotImplemented.yet();
+		return discipleService.create(user.userId(), courseId, request);
 	}
 
-	@Operation(summary = "D-02 내 제자")
+	@Operation(summary = "D-02 내 제자 (없으면 404 DISCIPLE_NOT_FOUND)")
 	@GetMapping("/courses/{courseId}/disciple")
 	public DiscipleResponse myDisciple(@CurrentUser AuthUser user, @PathVariable Long courseId) {
-		return NotImplemented.yet();
+		return discipleService.mine(user.userId(), courseId);
 	}
 
 }
