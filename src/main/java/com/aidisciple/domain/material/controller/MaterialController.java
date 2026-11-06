@@ -5,6 +5,7 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,9 @@ import com.aidisciple.domain.material.dto.MaterialResponse;
 import com.aidisciple.domain.material.dto.MaterialSummaryResponse;
 import com.aidisciple.domain.material.dto.MaterialUnitsResponse;
 import com.aidisciple.domain.material.dto.UpdateMaterialUnitsRequest;
-import com.aidisciple.global.api.NotImplemented;
+import com.aidisciple.domain.material.service.MaterialIntakeService;
+import com.aidisciple.domain.material.service.MaterialQueryService;
+import com.aidisciple.domain.material.service.MaterialUnitService;
 import com.aidisciple.global.security.AuthUser;
 import com.aidisciple.global.security.CurrentUser;
 
@@ -33,7 +36,12 @@ import com.aidisciple.global.security.CurrentUser;
 @Tag(name = "강의자료")
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class MaterialController {
+
+	private final MaterialIntakeService intakeService;
+	private final MaterialQueryService queryService;
+	private final MaterialUnitService unitService;
 
 	/** 동의 여부는 서비스가 검사해 MATERIAL_CONSENT_REQUIRED 를 준다. 그래서 값이 없을 때도 400 이 아니라 false 로 받는다. */
 	@Operation(summary = "M-01 PDF 업로드 (multipart, 202 접수)")
@@ -46,7 +54,7 @@ public class MaterialController {
 		@RequestParam("title") String title,
 		@RequestParam(value = "consentAgreed", defaultValue = "false") boolean consentAgreed
 	) {
-		return NotImplemented.yet();
+		return intakeService.acceptFile(user.userId(), courseId, file, title, consentAgreed);
 	}
 
 	@Operation(summary = "M-02 텍스트 붙여넣기 (202 접수)")
@@ -57,19 +65,19 @@ public class MaterialController {
 		@PathVariable Long courseId,
 		@Valid @RequestBody CreateTextMaterialRequest request
 	) {
-		return NotImplemented.yet();
+		return intakeService.acceptText(user.userId(), courseId, request);
 	}
 
 	@Operation(summary = "M-03 처리 상태 + 연결된 주차 (폴링)")
 	@GetMapping("/materials/{materialId}")
 	public MaterialResponse getMaterial(@CurrentUser AuthUser user, @PathVariable Long materialId) {
-		return NotImplemented.yet();
+		return queryService.get(user.userId(), materialId);
 	}
 
 	@Operation(summary = "M-04 내가 올린 자료 목록")
 	@GetMapping("/courses/{courseId}/materials")
 	public List<MaterialSummaryResponse> myMaterials(@CurrentUser AuthUser user, @PathVariable Long courseId) {
-		return NotImplemented.yet();
+		return queryService.mine(user.userId(), courseId);
 	}
 
 	@Operation(summary = "M-06 자료가 출처가 될 주차 지정 (전체 교체)")
@@ -79,7 +87,7 @@ public class MaterialController {
 		@PathVariable Long materialId,
 		@Valid @RequestBody UpdateMaterialUnitsRequest request
 	) {
-		return NotImplemented.yet();
+		return unitService.replace(user.userId(), materialId, request);
 	}
 
 }
