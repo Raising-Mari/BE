@@ -1,5 +1,6 @@
 package com.aidisciple.domain.course.service;
 
+import com.aidisciple.domain.course.dto.DiscipleRef;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,14 @@ public class DiscipleService {
 		return discipleRepository.findByUserIdAndCourseId(userId, course.getId())
 			.map(DiscipleService::toResponse)
 			.orElseThrow(() -> new BusinessException(ErrorCode.DISCIPLE_NOT_FOUND));
+	}
+
+	/** 다른 도메인(가르치기 등)이 "이 사용자의 제자인가"를 확인할 때 쓴다. 없는 제자와 남의 제자를 같은 NOT_FOUND 로 답한다. */
+	public DiscipleRef requireOwned(long userId, long discipleId) {
+		return discipleRepository.findById(discipleId)
+			.filter(disciple -> disciple.getUserId() == userId)
+			.map(disciple -> new DiscipleRef(disciple.getId(), disciple.getUserId(), disciple.getCourseId()))
+			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 	}
 
 	private static DiscipleResponse toResponse(Disciple disciple) {
