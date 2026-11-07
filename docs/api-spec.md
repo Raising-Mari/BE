@@ -463,6 +463,17 @@
 - 11-1의 4단계(형식 검사)는 두 겹이다. JSON 자체가 깨지면 AI 어댑터가 한 번 다시 부르고, JSON은 맞지만 `reply`가 비었거나 `op`가 없으면 엔진이 한 번 더 부른다. 둘 다 실패하면 `AI_BAD_RESPONSE`다.
 - 프롬프트에 넣는 노트는 `app.teaching.prompt-notes-max-chars`(기본 6000자)까지 최신 노트부터 채운다. 유사도·상한 판단은 이 한도와 무관하게 전체 `ACTIVE` 노트로 한다.
 
+
+**구현 메모 (2026-11-08, WP6-B)** — 저장·조회를 만들면서 정한 것.
+- T-01은 `TeachingService`(트랜잭션 없음)가 `TeachingTurnStore.prepare`(읽기 트랜잭션) → `TeachingTurnEngine.run`(트랜잭션 밖, AI) → `TeachingTurnStore.save`(쓰기 트랜잭션) 순서로 부른다. AI가 실패하면 아무것도 저장하지 않는다.
+- 같은 `clientMessageId`를 다시 받으면 AI를 부르지 않고 저장된 결과를 준다. 이때 그 턴에 새로 생긴 노트(`ADD`·`UPDATE`)와 `rejectedCount`는 다시 만들지만, 병합·삭제·합치기 제안은 따로 저장하지 않아서 빈 목록이다.
+- 학생 메시지·제자 메시지 저장이 `UNIQUE` 제약에 걸리면(동시 전송) `TEACHING_CONCURRENT_TURN`(409)이다.
+- `UPDATE`로 생긴 새 노트의 `evidence`는 그 턴의 학생 메시지 전체다(검증기가 `UPDATE`에는 근거 구절을 주지 않는다).
+- `note_entries.verification_detail_json`은 `ADD`면 `{"op":"ADD","passed":true,"mergedCount":n}`, `UPDATE`면 `{"skipped":true,"op":"UPDATE"}`다. 검증기가 겹침 비율 같은 수치를 돌려주지 않아 erd 4절 예시의 수치는 아직 남기지 않는다.
+- 탈락 변경의 `target_entry_id`는 `TARGET_NOT_FOUND`면 비운다(없는 노트 id는 외래키에 걸린다).
+- T-02는 최신 메시지가 먼저 오는 페이지다(0페이지 = 가장 최근).
+- 아직 하지 않은 것: `pasteWarning`(항상 `false`, 자료 원문 비교 창구가 생기면 연결), `chat_messages.ai_call_log_id`(`LlmClient`가 로그 id를 돌려주지 않아 비어 있음), T-04·T-05(P1).
+
 ### 11-2. 문제 은행 파이프라인 (J-02)
 
 | 단계 | 하는 일 | 탈락 조건 |
