@@ -1,6 +1,7 @@
 package com.aidisciple.domain.question.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -26,6 +27,7 @@ import com.aidisciple.domain.question.logic.SourceSentence;
 /**
  * 문제 은행 파이프라인의 한 라운드 (api-spec 11-2 의 1~3단계, AI 2회). DB 를 읽거나 쓰지 않는다.
  * 개념 추출(0단계)은 생략했고(backend-plan D-7), 외부 판정(4단계)은 보류라 통과 문항은 UNJUDGED 로 저장한다(저장은 4단계 몫).
+ *  누출 시험은 전용 프롬프트(leak-test)로 "강의를 듣지 않은 사람"이 상식으로 풀게 해서, 맞히면 가르치지 않아도 풀리는 문항으로 보고 버린다.
  */
 @Component
 @RequiredArgsConstructor
@@ -34,11 +36,13 @@ public class QuestionPipelineEngine {
 	static final String PROMPT_NAME = "question-generate";
 	static final String PROMPT_VERSION = "v1";
 	static final String RELATED_TYPE = "QUESTION_JOB";
+	/** 누출 시험 전용 프롬프트: 강의를 듣지 않은 사람이 상식으로 풀게 한다 (battle-solve 에 빈 노트를 넣으면 항상 "모름"이라 거르지 못한다) */
+	static final String LEAK_PROMPT_NAME = "leak-test";
+	static final String LEAK_PROMPT_VERSION = "v1";
 	/** 프롬프트에 넣는 기존 문항 수 상한 (중복 판정 자체는 전체 문항으로 한다) */
 	private static final int EXISTING_STEMS_IN_PROMPT = 30;
 
 	private final LlmClient llmClient;
-	private final DiscipleSolver discipleSolver;
 	private final QuestionProperties properties;
 
 	/**
@@ -113,18 +117,30 @@ public class QuestionPipelineEngine {
 	}
 
 	private List<CandidateOutcome> leakTest(long jobId, List<QuestionCandidate> candidates) {
-		List<DiscipleSolver.SolveQuestion> questions = new ArrayList<>();
+		StringBuilder questions = new StringBuilder();
 		for (int i = 0; i < candidates.size(); i++) {
-			questions.add(new DiscipleSolver.SolveQuestion(i + 1, candidates.get(i).stem()));
+			questions.append('[').append(i + 1).append("] ").append(candidates.get(i).stem()).append('\n');
 		}
-		List<DiscipleSolver.SolvedAnswer> answers = discipleSolver.solve(new DiscipleSolver.SolveInput(
-			AiPurpose.LEAK_TEST, null, RELATED_TYPE, jobId, List.of(), questions, false));
+		LlmRequest request = new LlmRequest(AiPurpose.LEAK_TEST, LEAK_PROMPT_NAME, LEAK_PROMPT_VERSION,
+			Map.of("questions", questions.toString().stripTrailing()), null, RELATED_TYPE, jobId);
+		SolveLlmResponse response = llmClient.generateJson(request, SolveLlmResponse.class);
+
+		Map<Long, SolveLlmResponse.LlmAnswer> answersByNo = new HashMap<>();
+		if (response != null) {
+			for (SolveLlmResponse.LlmAnswer answer : response.answersOrEmpty()) {
+				if (answer != null && answer.questionId() != null) {
+					answersByNo.putIfAbsent(answer.questionId(), answer);
+				}
+			}
+		}
 
 		List<CandidateOutcome> outcomes = new ArrayList<>();
 		for (int i = 0; i < candidates.size(); i++) {
 			QuestionCandidate candidate = candidates.get(i);
-			DiscipleSolver.SolvedAnswer answer = answers.get(i);
-			if (answer.unknown()) {
+			SolveLlmResponse.LlmAnswer answer = answersByNo.get((long) (i + 1));
+			boolean unknown = answer == null || Boolean.TRUE.equals(answer.unknown()) || answer.answer() == null
+				|| answer.answer().isBlank();
+			if (unknown) {
 				outcomes.add(CandidateOutcome.passed(candidate, null));
 			} else if (isCorrect(candidate, answer.answer())) {
 				outcomes.add(CandidateOutcome.failed(candidate, ValidationStage.LEAK_TEST,

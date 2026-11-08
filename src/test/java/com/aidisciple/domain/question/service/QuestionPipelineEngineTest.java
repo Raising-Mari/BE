@@ -26,8 +26,7 @@ class QuestionPipelineEngineTest {
 		new SourceSentence(2, 102L, "큐는 먼저 넣은 데이터가 먼저 나오는 선입선출 구조이다."));
 
 	private final LlmClient llmClient = mock(LlmClient.class);
-	private final QuestionPipelineEngine engine = new QuestionPipelineEngine(llmClient, new DiscipleSolver(llmClient),
-		QuestionProperties.defaults());
+	private final QuestionPipelineEngine engine = new QuestionPipelineEngine(llmClient, QuestionProperties.defaults());
 
 	private static GeneratedQuestion question(String stem, String answer, String quote, int no) {
 		return new GeneratedQuestion(stem, "ANSWER_LIST", List.of(answer), List.of(), answer, quote, List.of(no));
