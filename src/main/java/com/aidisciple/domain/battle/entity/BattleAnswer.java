@@ -16,11 +16,12 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.aidisciple.domain.review.entity.ReviewCause;
 import com.aidisciple.global.jpa.BaseTimeEntity;
 
 /**
  * 참가자의 문항별 답. 제자 풀이(WP8)가 {@link Verdict#PENDING}·0점으로 저장하고, 채점(WP9)이 판정과 점수를 채운다.
- * 복붙 보정 계수·지시문 플래그·원인 제안 컬럼은 채점이 쓰므로 WP9 에서 이 엔티티에 매핑한다(DB 기본값이 있다).
+ * 복붙 비율·보정 계수·지시문 플래그·원인 제안은 채점이 {@link #applyGrade} 로 채운다.
  */
 @Getter
 @Entity
@@ -66,8 +67,26 @@ public class BattleAnswer extends BaseTimeEntity {
 	@Column(nullable = false, precision = 5, scale = 2)
 	private BigDecimal finalScore;
 
+	@Column(nullable = false, precision = 4, scale = 3)
+	private BigDecimal copyRatio = BigDecimal.ZERO;
+
+	@Column(nullable = false, precision = 3, scale = 2)
+	private BigDecimal copyFactor = BigDecimal.ONE;
+
+	@Column(nullable = false)
+	private boolean injectionFlag;
+
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(length = 20)
+	private ReviewCause causeSuggestion;
+
 	@Column(nullable = false, columnDefinition = "JSON")
 	private String gradingDetailJson;
+
+	public boolean isPending() {
+		return verdict == Verdict.PENDING;
+	}
 
 	/** 풀이 직후의 답. 모름이면 {@code answerText} 는 null 이다. */
 	public static BattleAnswer solved(Long participantId, Long battleQuestionId, String answerText, boolean unknown,
@@ -84,6 +103,31 @@ public class BattleAnswer extends BaseTimeEntity {
 		answer.finalScore = BigDecimal.ZERO;
 		answer.gradingDetailJson = AWAITING_GRADING_DETAIL;
 		return answer;
+	}
+
+	/**
+	 * 채점 결과를 채운다(WP9). 채점 전(PENDING)인 답에만 할 수 있다 — 한 번 채점한 답은 다시 바꾸지 않는다.
+	 *
+	 * @param causeSuggestion WRONG·PARTIAL·UNKNOWN·UNJUDGED 일 때만 있다. 제안일 뿐 최종 원인은 학생이 고른다(R-02).
+	 */
+	public void applyGrade(Verdict verdict, JudgedBy judgedBy, BigDecimal rawScore, BigDecimal copyRatio,
+						   BigDecimal copyFactor, BigDecimal finalScore, boolean injectionFlag, ReviewCause causeSuggestion,
+						   String gradingDetailJson) {
+		if (!isPending()) {
+			throw new IllegalStateException("이미 채점된 답입니다.");
+		}
+		if (verdict == Verdict.PENDING) {
+			throw new IllegalArgumentException("채점 결과가 PENDING 일 수 없습니다.");
+		}
+		this.verdict = verdict;
+		this.judgedBy = judgedBy;
+		this.rawScore = rawScore;
+		this.copyRatio = copyRatio;
+		this.copyFactor = copyFactor;
+		this.finalScore = finalScore;
+		this.injectionFlag = injectionFlag;
+		this.causeSuggestion = causeSuggestion;
+		this.gradingDetailJson = gradingDetailJson;
 	}
 
 }

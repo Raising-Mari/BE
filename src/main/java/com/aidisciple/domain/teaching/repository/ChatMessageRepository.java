@@ -27,6 +27,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 	int findMaxTurnNo(@Param("discipleId") Long discipleId, @Param("unitId") Long unitId);
 
 	/** 최근 대화를 최신 것부터. 프롬프트에는 서비스가 순서를 뒤집어 오래된 것부터 넣는다. */
+	/** 학생이 보낸 메시지만 오래된 것부터 (채점의 원인 제안이 "가르쳤는가"를 볼 때 쓴다) */
+	List<ChatMessage> findByDiscipleIdAndUnitIdAndRoleOrderByIdAsc(Long discipleId, Long unitId, ChatRole role);
+
 	List<ChatMessage> findByDiscipleIdAndUnitIdOrderByIdDesc(Long discipleId, Long unitId, Pageable pageable);
 
 	Page<ChatMessage> findByDiscipleId(Long discipleId, Pageable pageable);

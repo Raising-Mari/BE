@@ -306,8 +306,8 @@
 배틀 상태 전이: `WAITING → LOBBY → RUNNING → FINISHED`, `WAITING/LOBBY → CANCELED/EXPIRED`, `RUNNING → ERROR`, **`ERROR → RUNNING`**(B-09로 풀이를 다시 시도할 때), **`ERROR → CANCELED`**(B-05로 참가자가 포기할 때). 연습 배틀은 생성과 동시에 `RUNNING`에서 시작한다. 허용되지 않은 전이는 `409 CONFLICT`.
 
 **구현 메모 (2026-11-09, WP8)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
-- **만든 것**: B-01~B-06, B-08, B-09, B-10, J-03의 풀이 단계, J-04, J-06(배틀). B-07(결과)·채점·Elo·`FINISHED` 전환은 WP9·WP10이다.
-- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **WP9 전에는 배틀이 `RUNNING`(두 참가자 `SOLVED`)에서 멈춘다.** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 전까지 `null`이다.
+- **만든 것**: B-01~B-06, B-08, B-09, B-10, J-03의 풀이 단계, J-04, J-06(배틀). B-07(결과)·채점·`FINISHED` 전환은 WP9에서, Elo 는 WP10에서 만든다.
+- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **(WP9에서 채점이 연결돼 지금은 `FINISHED`까지 간다 — 아래 11-4 구현 메모.)** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 전까지 `null`이다.
 - **잠금 순서**: 같은 사람의 요청은 사용자 행(`users`), 같은 배틀의 요청은 배틀 행을 `FOR UPDATE`로 잠가 한 줄로 세운다. 항상 사용자 → 배틀 순서라 교착이 없다. 풀이 작업 접수와 `BATTLE_NOT_ENOUGH_QUESTIONS` 오류는 트랜잭션이 커밋된 **뒤에** 처리한다(곧바로 시작되는 풀이 스레드가 커밋 전 상태를 못 보게, 오류로 롤백돼 두 사람의 준비 해제가 사라지지 않게).
 - **B-01·B-02**: "진행 중인 `RANKED` 방은 하나"(`BATTLE_ALREADY_ACTIVE`)를 입장자에게도 적용한다. 입장 시간이 지난 방은 만료 작업(J-04)이 돌기 전이어도 진행 중으로 치지 않는다. `BATTLE_NOTES_REQUIRED`의 `details`(`courseId`, `unit`)는 B-01·B-04에서도 준다. 다른 학교의 방은 `BATTLE_ROOM_NOT_FOUND`가 아니라 `NOT_FOUND`로 답한다(과목 가시성 검사와 같은 규칙). 이미 들어온 입장자가 다시 호출하면 같은 응답을 준다(새로고침).
 - **B-03·B-06**: 입장 시간이 지난 `WAITING`/`LOBBY`는 `EXPIRED`로 보여 준다(B-02와 같은 기준). 끝난 배틀의 `summary`는 참가자의 `total_score`·`result`를 쓴다.
@@ -316,7 +316,7 @@
 - **B-09**: `202`. 실패한 참가자만 다시 접수하고 이미 푼 참가자의 답은 그대로 둔다.
 - **B-10**: `battleAnswerIds`를 생략(null)해야 "맞히지 못한 답 전부"이고, 빈 목록은 "아무것도 고르지 않음"이라 `PRACTICE_NOTHING_TO_REVIEW`다. 생략했을 때 `ZEROED_INJECTION` 답은 대상에서 뺀다. "이미 진행 중인 연습"은 `RUNNING`과 `ERROR`를 센다. 사용량 제한은 B-01과 같은 이름(`battle.create`)으로 함께 센다.
 - **J-03**: 참가자마다 AI는 한 번(전 문항 일괄). 실패하면 최대 3회(처음 1 + 재시도 2) 시도하고 대기는 2초·4초로 늘린다. 끝내 실패하면 배틀이 `ERROR`(이유는 오류 코드만)다. 노트가 0개면(연습 배틀만 가능) AI를 부르지 않고 모두 `모름`으로 저장한다. 작업 큐가 가득 차면 `ERROR`(`QUEUE_FULL`)로 닫고 B-09로 재시도한다. 설정은 `app.battle.*`.
-- **만들지 않은 것**: B-07, 채점(`grading`), Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다.
+- **만들지 않은 것**: Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다. (B-07·채점은 WP9에서 만들었다.)
 
 ---
 
@@ -550,6 +550,19 @@
 **알려진 한계**: `ANSWER_LIST`는 정답 표현을 *포함*하면 `CORRECT`이므로, 정답 후보를 줄줄이 *나열*한 답을 오답으로 거르는 장치는 없다 (흐름도의 "나열은 오답" 가드는 도입하지 않기로 했다). 시연 세트 점검에서 이런 답이 나오는지 본다.
 
 정규화·n-gram·부정 표현 검출은 **하나의 유틸**(`global/text` 또는 `domain/material`의 공용 클래스)을 `teaching`·`question`·`grading`이 함께 쓴다. 단위 테스트를 가장 먼저 붙인다.
+
+**구현 메모 (2026-11-09, WP9)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: 채점 전체(위 1~8), 풀이 완료 → 채점 → `FINISHED` 연결, B-07. Elo(11-5)는 WP10이다 — 채점이 끝나 배틀이 `FINISHED`가 되면 `BattleFinishedEvent(battleId, mode)`를 내고, 랭킹은 `RANKED`일 때만 받아 반영한다. B-07·B-03의 `eloDelta`는 그때까지 `null`이다.
+- **흐름**: `BattleSolvedEvent`(커밋 뒤) → `GradingTrigger` → 비동기 `GradingRunner`. 읽기(답·문항·노트·자료), AI 판정, 쓰기가 서로 다른 짧은 트랜잭션이고, 쓰기는 `BattleSettlementService.settle` 하나가 배틀 행을 잠그고 **한 번에** 한다(답 판정·점수, 참가자 합계·건수·승패, `FINISHED`, 이벤트). 같은 이벤트가 두 번 와도 두 번째는 아무 일도 하지 않는다. 채점이 실패하면 배틀은 `RUNNING`(두 참가자 `SOLVED`)으로 남고 **서버가 다시 시작될 때** 이벤트를 다시 내 이어서 채점한다. 실행 중 실패의 자동 재시도는 없다(한계).
+- **AI 판정(`grade-batch.v1`)**: 문서의 `{ questionId, … }` 대신 **`answerId`**로 잇는다(같은 문항을 두 참가자가 풀 수 있어서). 애매한 답을 한 배틀 안에서 모아 12개씩 부른다. 호출이 끝내 실패(최대 2회 시도)하거나 응답 형식이 어긋나면 **그 답만** `UNJUDGED`(0점)로 두고 배틀은 끝낸다 — B-09는 풀이만 다시 하므로 채점을 되살릴 길이 없어서, 배틀을 멈추는 대신 관리자 확인 대상으로 남긴다. AI 호출 로그의 `user_id`는 비운다(두 사람의 답을 함께 부르므로).
+- **복붙 보정**: 비율은 글자 8-gram 이 자료에 들어 있는 비율이라 **8자 미만 답은 0**이다 — "후입선출" 같은 짧은 정답이 자료에 그대로 있어도 감점이 없다. `copy_ratio`에는 답·노트 중 큰 값을 저장하고 계수는 `CORRECT`·`PARTIAL`일 때만 1이 아니다.
+- **노트 밖 지식**: 핵심 요소형은 인용한 노트에도 있는 요소만 센다. **정답 목록형은 문서대로 노트 조건 없이 포함 여부만 본다** — 노트를 인용했지만 노트에 정답 표현이 없는 답도 `CORRECT`가 될 수 있다(알려진 한계). 문제 은행의 누출 시험(노트 없이 풀리는 문항 제거)과 `DiscipleSolver`의 노트 인용 강제가 이를 줄인다.
+- **지시문 패턴**: 기본 목록의 `채점`·`ignore`는 일반 글(예: 노트의 "채점 서버")에도 걸릴 수 있다. `app.grading.injection-patterns`로 조정한다. 사용한 노트에 있어도 0점이다.
+- **원인 제안**: "겹친다"는 3-gram 겹침(작은 쪽 기준) ≥ 0.25 **이고 겹친 조각이 3개 이상**일 때다(짧은 노트 "선입선출"이 스택 근거의 "후입선출"과 한 조각만 같아 겹친 것으로 오판되는 것을 막는다). 정답 목록형의 "핵심 요소가 모두 노트에 있다"는 정답 표현 하나가 노트에 있다는 뜻이다. `UNJUDGED`도 원인 제안 대상이고 `OTHER`는 제안하지 않는다. 노트 겹침은 준비 완료 때 스냅샷한 노트 전체로, "가르쳤는가"는 이 제자·주차의 학생 메시지 전체로 본다.
+- **합계·건수**: 합계는 답의 `final_score` 합(소수 둘째 자리)이고, 건수는 정답·부분 정답·오답·모름·지시문 의심(`flagged_count`)이다 — `UNJUDGED`는 어느 건수에도 세지 않는다. 승패는 합계를 소수 둘째 자리까지 비교하고, 연습 배틀은 승패가 없다.
+- **B-07**: 모범 답·자료 근거·`grading_detail_json`은 싣지 않는다. 상대의 답 원문은 두 사람이 모두 `notesPublic`일 때만 담는다. 상대의 판정·점수는 항상 담는다.
+- 설정은 `app.scoring.*`·`app.grading.*`.
+- **만들지 않은 것**: Elo, 복기(R-01~)와 정답 보기(R-11), 관리자의 `UNJUDGED` 검수(X-03).
 
 ### 11-5. Elo (`domain/ranking`)
 

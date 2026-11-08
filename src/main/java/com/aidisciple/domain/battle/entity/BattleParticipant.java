@@ -156,6 +156,18 @@ public class BattleParticipant extends BaseTimeEntity {
 		this.notesPublic = notesPublic;
 	}
 
+	/** 채점이 끝나 점수·건수·승패를 채운다(WP9). 연습 배틀은 {@code result} 가 null 이다. */
+	public void applyResult(BigDecimal totalScore, int correct, int partial, int wrong, int unknown, int flagged,
+							BattleResult result) {
+		this.totalScore = totalScore;
+		this.correctCount = correct;
+		this.partialCount = partial;
+		this.wrongCount = wrong;
+		this.unknownCount = unknown;
+		this.flaggedCount = flagged;
+		this.result = result;
+	}
+
 	/** 풀이 시작을 선점한다. 이미 풀고 있거나 끝났으면 false — 같은 작업이 두 번 접수돼도 한 번만 푼다. */
 	public boolean claimSolve() {
 		if (solveStatus != SolveStatus.PENDING) {
