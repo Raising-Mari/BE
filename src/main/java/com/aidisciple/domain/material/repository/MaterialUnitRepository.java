@@ -14,4 +14,7 @@ public interface MaterialUnitRepository extends JpaRepository<MaterialUnit, Mate
 	/** 목록 화면에서 자료마다 따로 조회하지 않도록 한 번에 읽는다. */
 	List<MaterialUnit> findByIdMaterialIdIn(Collection<Long> materialIds);
 
+	/** 이 주차에 연결된 자료 (문제 은행이 주차 문장을 모을 때) */
+	List<MaterialUnit> findByIdUnitId(Long unitId);
+
 }

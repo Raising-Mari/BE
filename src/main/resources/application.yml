@@ -76,6 +76,19 @@ app:
     max-pages: 500
     # 뽑은 글자(공백 제외)가 이보다 적으면 스캔본 등으로 보고 FAILED/NO_TEXT.
     min-text-chars: 30
+
+  question:
+    # 배틀에 UNJUDGED(외부 판정 전) 문항을 쓸지. 시연 직전 검수 뒤 false 로 끌 수 있다 (api-spec 11-2)
+    allow-unjudged: true
+    # 주차 하나에 모아 둘 목표 문항 수 (작업 한 번에 채우려는 수)
+    target-count: 10
+    # AI 한 번에 만들게 하는 후보 수. 출력 토큰 상한(2048)을 넘지 않게 작게 둔다.
+    batch-size: 5
+    # 목표를 못 채워도 이 라운드 수까지만 돈다 (라운드마다 AI 2회: 생성 + 누출 시험)
+    max-rounds: 3
+    # 생성 프롬프트에 넣는 자료 문장의 글자 수 상한. 라운드마다 다음 구간을 넣는다.
+    prompt-sentences-max-chars: 12000
+
   teaching:
     # ADD 노트 검증: content 의 글자 3-gram 이 학생 메시지에 포함되는 비율의 하한 (초기값, 시연 세트로 조정)
     min-overlap: 0.6
