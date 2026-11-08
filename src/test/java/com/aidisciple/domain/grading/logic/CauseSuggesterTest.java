@@ -115,6 +115,14 @@ class CauseSuggesterTest {
 	}
 
 	@Test
+	void 짧은_노트가_한_조각만_겹치는_것은_겹침이_아니다() {
+		// "큐는 선입선출" 과 스택의 "후입선출" 은 3-gram "입선출" 하나만 같다 — 큐 이야기를 스택 노트로 보면 안 된다
+		ReviewCause cause = suggest(answerList(), List.of("큐는 선입선출"), List.of());
+
+		assertThat(cause).isEqualTo(ReviewCause.NOT_TAUGHT);
+	}
+
+	@Test
 	void 기타는_제안하지_않는다() {
 		for (List<String> notes : List.of(List.<String>of(), List.of("다른 이야기"), List.of(EVIDENCE))) {
 			assertThat(suggest(answerList(), notes, List.of())).isNotEqualTo(ReviewCause.OTHER);

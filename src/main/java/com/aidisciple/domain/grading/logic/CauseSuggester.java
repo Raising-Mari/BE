@@ -26,6 +26,8 @@ import com.aidisciple.global.text.TextNormalizer;
 public final class CauseSuggester {
 
 	private static final int NGRAM = 3;
+	/** 비율이 기준을 넘어도 겹친 3-gram 이 이보다 적으면 겹침으로 보지 않는다. 짧은 노트가 "선입선출"과 "후입선출"처럼 한 조각만 같아도 겹친 것이 되는 것을 막는다. */
+	static final int MIN_SHARED_GRAMS = 3;
 
 	private final double overlapThreshold;
 
@@ -50,7 +52,7 @@ public final class CauseSuggester {
 		return ReviewCause.NOT_APPLIED;
 	}
 
-	/** 두 글의 3-gram 겹침(겹친 개수 / 더 작은 집합의 크기)이 기준 이상인가 */
+	/** 두 글의 3-gram 겹침(겹친 개수 / 더 작은 집합의 크기)이 기준 이상이고 겹친 조각이 {@value #MIN_SHARED_GRAMS}개 이상인가 */
 	boolean overlaps(String a, String b) {
 		Set<String> gramsA = CharNgrams.of(a == null ? "" : a, NGRAM);
 		Set<String> gramsB = CharNgrams.of(b == null ? "" : b, NGRAM);
@@ -58,7 +60,7 @@ public final class CauseSuggester {
 			return false;
 		}
 		long shared = gramsA.stream().filter(gramsB::contains).count();
-		return (double) shared / Math.min(gramsA.size(), gramsB.size()) >= overlapThreshold;
+		return shared >= MIN_SHARED_GRAMS && (double) shared / Math.min(gramsA.size(), gramsB.size()) >= overlapThreshold;
 	}
 
 	/** 핵심 요소형은 모든 요소가, 정답 목록형은 정답 표현 하나가 노트에 있어야 "갖춰졌다"고 본다. */
