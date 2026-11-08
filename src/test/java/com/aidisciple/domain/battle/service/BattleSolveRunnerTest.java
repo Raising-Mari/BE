@@ -35,7 +35,7 @@ class BattleSolveRunnerTest {
 
 	private final BattleSolveStore store = mock(BattleSolveStore.class);
 	private final DiscipleSolver solver = mock(DiscipleSolver.class);
-	private final BattleProperties properties = new BattleProperties(Duration.ofMinutes(30), 3, Duration.ZERO, Duration.ofMinutes(1));
+	private final BattleProperties properties = new BattleProperties(Duration.ofMinutes(30), 3, Duration.ZERO);
 	private final BattleSolveRunner runner = new BattleSolveRunner(store, solver, properties);
 
 	private static BattleSolveStore.SolveContext context(List<NoteRef> notes) {

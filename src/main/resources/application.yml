@@ -96,8 +96,8 @@ app:
     solve-max-attempts: 3
     # 재시도 전 첫 대기 시간. 시도마다 2배로 늘린다.
     solve-retry-backoff: 2s
-    # 만료된 방을 찾는 주기 (api-spec J-04: 1분)
-    expiry-sweep-interval: 1m
+    # 만료된 방을 찾는 주기 (api-spec J-04: 1분). BattleExpiryJob 의 @Scheduled 가 직접 읽으므로 ISO-8601(PT1M)로 쓴다.
+    expiry-sweep-interval: PT1M
 
   teaching:
     # ADD 노트 검증: content 의 글자 3-gram 이 학생 메시지에 포함되는 비율의 하한 (초기값, 시연 세트로 조정)

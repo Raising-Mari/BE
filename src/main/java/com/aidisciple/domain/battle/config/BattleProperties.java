@@ -10,12 +10,11 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record BattleProperties(
 	@DefaultValue("30m") Duration roomTtl,
 	@DefaultValue("3") int solveMaxAttempts,
-	@DefaultValue("2s") Duration solveRetryBackoff,
-	@DefaultValue("1m") Duration expirySweepInterval
+	@DefaultValue("2s") Duration solveRetryBackoff
 ) {
 
 	public static BattleProperties defaults() {
-		return new BattleProperties(Duration.ofMinutes(30), 3, Duration.ofSeconds(2), Duration.ofMinutes(1));
+		return new BattleProperties(Duration.ofMinutes(30), 3, Duration.ofSeconds(2));
 	}
 
 }
