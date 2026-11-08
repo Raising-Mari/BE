@@ -307,7 +307,7 @@
 
 **구현 메모 (2026-11-09, WP8)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
 - **만든 것**: B-01~B-06, B-08, B-09, B-10, J-03의 풀이 단계, J-04, J-06(배틀). B-07(결과)·채점·`FINISHED` 전환은 WP9에서, Elo 는 WP10에서 만든다.
-- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **(WP9에서 채점이 연결돼 지금은 `FINISHED`까지 간다 — 아래 11-4 구현 메모.)** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 전까지 `null`이다.
+- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **(WP9에서 채점이 연결돼 지금은 `FINISHED`까지 간다 — 아래 11-4 구현 메모.)** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 에서 채워졌다(아래 WP10 메모).
 - **잠금 순서**: 같은 사람의 요청은 사용자 행(`users`), 같은 배틀의 요청은 배틀 행을 `FOR UPDATE`로 잠가 한 줄로 세운다. 항상 사용자 → 배틀 순서라 교착이 없다. 풀이 작업 접수와 `BATTLE_NOT_ENOUGH_QUESTIONS` 오류는 트랜잭션이 커밋된 **뒤에** 처리한다(곧바로 시작되는 풀이 스레드가 커밋 전 상태를 못 보게, 오류로 롤백돼 두 사람의 준비 해제가 사라지지 않게). **다른 참가자의 상태로 판단하는 읽기(둘 다 풀었는가)는 참가자도 잠금 읽기로 한다** — 일반 읽기는 잠금을 기다리기 전에 고정된 스냅샷을 볼 수 있다(REPEATABLE READ, 2026-11-09 수정).
 - **B-01·B-02**: "진행 중인 `RANKED` 방은 하나"(`BATTLE_ALREADY_ACTIVE`)를 입장자에게도 적용한다. 입장 시간이 지난 방은 만료 작업(J-04)이 돌기 전이어도 진행 중으로 치지 않는다. `BATTLE_NOTES_REQUIRED`의 `details`(`courseId`, `unit`)는 B-01·B-04에서도 준다. 다른 학교의 방은 `BATTLE_ROOM_NOT_FOUND`가 아니라 `NOT_FOUND`로 답한다(과목 가시성 검사와 같은 규칙). 이미 들어온 입장자가 다시 호출하면 같은 응답을 준다(새로고침).
 - **B-03·B-06**: 입장 시간이 지난 `WAITING`/`LOBBY`는 `EXPIRED`로 보여 준다(B-02와 같은 기준). 끝난 배틀의 `summary`는 참가자의 `total_score`·`result`를 쓴다.
@@ -552,7 +552,7 @@
 정규화·n-gram·부정 표현 검출은 **하나의 유틸**(`global/text` 또는 `domain/material`의 공용 클래스)을 `teaching`·`question`·`grading`이 함께 쓴다. 단위 테스트를 가장 먼저 붙인다.
 
 **구현 메모 (2026-11-09, WP9)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
-- **만든 것**: 채점 전체(위 1~8), 풀이 완료 → 채점 → `FINISHED` 연결, B-07. Elo(11-5)는 WP10이다 — 채점이 끝나 배틀이 `FINISHED`가 되면 `BattleFinishedEvent(battleId, mode)`를 내고, 랭킹은 `RANKED`일 때만 받아 반영한다. B-07·B-03의 `eloDelta`는 그때까지 `null`이다.
+- **만든 것**: 채점 전체(위 1~8), 풀이 완료 → 채점 → `FINISHED` 연결, B-07. Elo(11-5)는 WP10이다 — 채점이 끝나 배틀이 `FINISHED`가 되면 `BattleFinishedEvent(battleId, mode)`를 내고, 랭킹은 `RANKED`일 때만 받아 반영한다. B-07 `elo`·B-03 `eloDelta`는 WP10 에서 채워졌다(아래 WP10 메모).
 - **흐름**: `BattleSolvedEvent`(커밋 뒤) → `GradingTrigger` → 비동기 `GradingRunner`. 읽기(답·문항·노트·자료), AI 판정, 쓰기가 서로 다른 짧은 트랜잭션이고, 쓰기는 `BattleSettlementService.settle` 하나가 배틀 행을 잠그고 **한 번에** 한다(답 판정·점수, 참가자 합계·건수·승패, `FINISHED`, 이벤트). 같은 이벤트가 두 번 와도 두 번째는 아무 일도 하지 않는다. 채점이 실패하면 배틀은 `RUNNING`(두 참가자 `SOLVED`)으로 남고 **서버가 다시 시작될 때** 이벤트를 다시 내 이어서 채점한다. 실행 중 실패의 자동 재시도는 없다(한계).
 - **AI 판정(`grade-batch.v1`)**: 문서의 `{ questionId, … }` 대신 **`answerId`**로 잇는다(같은 문항을 두 참가자가 풀 수 있어서). 애매한 답을 한 배틀 안에서 모아 12개씩 부른다. 호출이 끝내 실패(최대 2회 시도)하거나 응답 형식이 어긋나면 **그 답만** `UNJUDGED`(0점)로 두고 배틀은 끝낸다 — B-09는 풀이만 다시 하므로 채점을 되살릴 길이 없어서, 배틀을 멈추는 대신 관리자 확인 대상으로 남긴다. AI 호출 로그의 `user_id`는 비운다(두 사람의 답을 함께 부르므로).
 - **복붙 보정**: 비율은 글자 8-gram 이 자료에 들어 있는 비율이라 **8자 미만 답은 0**이다 — "후입선출" 같은 짧은 정답이 자료에 그대로 있어도 감점이 없다. `copy_ratio`에는 답·노트 중 큰 값을 저장하고 계수는 `CORRECT`·`PARTIAL`일 때만 1이 아니다.
@@ -571,6 +571,19 @@
 - 기대 승률 `E_A = 1 / (1 + 10^((R_B − R_A)/400))`, 갱신 `R_A' = round(R_A + K·(S_A − E_A))`, `K=32`, 승 1·무 0.5·패 0, 초기 1000.
 - 두 `elo_ratings` 행을 **`user_id` 순으로** `FOR UPDATE`로 잠가 데드락을 피한다(없으면 1000으로 생성).
 - `elo_histories`와 `elo_ratings`를 **한 트랜잭션**에서 반영. `UNIQUE(battle_id,user_id)` 위반 = 이미 반영됨 → 건너뛴다(멱등).
+
+**구현 메모 (2026-11-09, WP10)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: Elo 반영(위 11-5)과 K-01~K-05·K-07. K-06(학과·단과대 대항전)은 P2 라 만들지 않았다.
+- **반영 시점**: 채점 정산(`BattleSettlementService.settle`)이 배틀을 `FINISHED`로 만드는 **같은 트랜잭션**에서 반영한다. 랭킹이 `BattleFinishedEvent`를 `@TransactionalEventListener(AFTER_COMMIT)`이 아니라 평범한 `@EventListener`로 받기 때문이다 — 그래야 "`FINISHED`이면 Elo도 반영돼 있다"가 지켜져 결과 화면(B-03 `summary.eloDelta`, B-07 `elo`)이 Elo 변화 없이 뜨는 순간이 없다. 반영이 실패하면 정산이 통째로 되돌려져 배틀은 `RUNNING`(채점 전)으로 남고 서버가 다시 시작될 때 이어서 채점된다. (WP8·WP9 메모와 battle `AGENTS.md`에 "랭킹은 `AFTER_COMMIT`으로 받는다"고 쓴 것을 이 방식으로 바꿨다.)
+- **멱등과 복구**: `elo_histories`에 그 배틀이 이미 있으면 건너뛰고(`UNIQUE(battle_id, user_id)`가 마지막 보루), 두 레이팅 행은 `user_id` 순으로 `FOR UPDATE` 한다(없으면 1000점 행을 만든다). 서버가 시작될 때 **Elo가 빠진 `FINISHED` 랭킹 배틀을 끝난 순서대로** 반영한다(Elo 도입 전에 끝난 배틀 포함). 한 배틀의 실패가 다른 배틀을 막지 않는다.
+- **반올림**: 두 사람의 변화량을 각자 `round(R + K·(S − E))`로 따로 계산하므로, 변화량의 합이 드물게 ±1 어긋날 수 있다(경계값에서만).
+- **의존 방향**: 랭킹이 battle 의 `BattleRecordService`로만 결과를 읽고, 배틀 응답의 Elo 변화는 battle 이 정한 `BattleEloLookup` 인터페이스를 랭킹이 구현해 채운다(battle 은 랭킹을 모른다).
+- **K-01**: `scope=DEPARTMENT`에서 `departmentId`를 생략하면 내 학과다. 학과가 없는 사용자가 생략하면 `400`, 다른 학교의 학과는 `404`. `me`는 한 판도 안 했거나(학과 범위면) 그 학과 학생이 아니면 `null`이다. 순위는 DB 에서 페이지로 자르고 내 순위는 앞선 사람 수로 센다. 탈퇴 사용자를 거르는 것은 학과 범위뿐이다(탈퇴 기능이 아직 없다).
+- **K-03·K-04**: 끝난 랭킹 배틀만 센다. K-04 항목 `{ battleId, course, result, myScore, opponentScore, finishedAt }`는 문서에 모양이 없어 정했다(`result`는 내 쪽 승패). 한 적 없는 상대면 `404`가 아니라 빈 페이지다(그 사용자가 있는지 알려 주지 않는다). 내 전적 전체를 읽어 상대로 거른 뒤 페이지로 자른다.
+- **K-05**: 과목의 기간 안 변동 이력을 읽어 사용자별로 합친다. `days`는 기본 21, 1~365(벗어나면 `400`). 기간 안에 랭킹 배틀이 없는 사람은 나오지 않고, 동점이면 `user_id`가 작은 쪽이 앞이다. 이력 전체를 메모리에서 합치므로 학교 규모에서만 쓴다.
+- **K-07**: `courseId`는 선택이다. 상대는 그 배틀의 다른 참가자(못 찾으면 `null`).
+- 만들지 않은 것: K-06, 복기·정답 보기(R-xx)와 관리자 지표.
+
 
 ---
 
