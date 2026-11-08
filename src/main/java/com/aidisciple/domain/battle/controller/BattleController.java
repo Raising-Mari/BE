@@ -26,6 +26,7 @@ import com.aidisciple.domain.battle.entity.BattleMode;
 import com.aidisciple.domain.battle.dto.UpdateParticipantRequest;
 import com.aidisciple.domain.battle.entity.BattleStatus;
 import com.aidisciple.domain.battle.service.BattleQueryService;
+import com.aidisciple.domain.battle.service.BattleReadyService;
 import com.aidisciple.domain.battle.service.BattleRoomService;
 import com.aidisciple.global.api.NotImplemented;
 import com.aidisciple.global.api.PageResponse;
@@ -41,6 +42,7 @@ public class BattleController {
 
 	private final BattleRoomService roomService;
 	private final BattleQueryService queryService;
+	private final BattleReadyService readyService;
 
 	@Operation(summary = "B-01 방 만들기 (RANKED)")
 	@PostMapping
@@ -69,7 +71,7 @@ public class BattleController {
 		@PathVariable Long battleId,
 		@RequestBody(required = false) ReadyRequest request
 	) {
-		NotImplemented.yet();
+		readyService.ready(user.userId(), battleId, request);
 	}
 
 	@Operation(summary = "B-05 방 취소·나가기 (참가자 누구나, ERROR 에서는 포기)")
@@ -90,6 +92,13 @@ public class BattleController {
 		@RequestParam(required = false) Integer size
 	) {
 		return queryService.mine(user.userId(), mode, status, courseId, page, size);
+	}
+
+	@Operation(summary = "B-09 제자 풀이 재시도 (ERROR 배틀, 참가자 누구나)")
+	@PostMapping("/{battleId}/solve/retry")
+	@ResponseStatus(HttpStatus.ACCEPTED)
+	public void retrySolve(@CurrentUser AuthUser user, @PathVariable Long battleId) {
+		readyService.retrySolve(user.userId(), battleId);
 	}
 
 	@Operation(summary = "B-08 내 노트 공개 동의 변경")
