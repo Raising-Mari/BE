@@ -49,6 +49,7 @@ public class BattleQueryService {
 	private final CourseService courseService;
 	private final UnitService unitService;
 	private final Clock clock;
+	private final BattleEloLookup eloLookup;
 
 	/** B-03 */
 	public BattleResponse get(long userId, long battleId) {
@@ -80,10 +81,10 @@ public class BattleQueryService {
 	}
 
 	/**
-	 * FINISHED 일 때만. 점수·승패는 채점(WP9)이 참가자에 채워 두고, Elo 변화는 랭킹(WP10)이 생기면 채운다.
+	 * FINISHED 일 때만. 점수·승패는 채점이 참가자에 채워 두고, Elo 변화는 랭킹이 같은 트랜잭션에서 반영한 값을 읽는다.
 	 * 연습 배틀은 상대·승패·Elo 가 없다.
 	 */
-	private static BattleResponse.Summary summary(Battle battle, List<BattleParticipant> participants, long viewerId) {
+	private BattleResponse.Summary summary(Battle battle, List<BattleParticipant> participants, long viewerId) {
 		if (battle.getStatus() != BattleStatus.FINISHED) {
 			return null;
 		}
@@ -95,8 +96,9 @@ public class BattleQueryService {
 			return new BattleResponse.Summary(me.getTotalScore(), null, null, null);
 		}
 		BattleParticipant opponent = participants.stream().filter(p -> p.getUserId() != viewerId).findFirst().orElse(null);
+		Integer eloDelta = eloLookup.find(battle.getId(), viewerId).map(BattleEloLookup.EloChange::delta).orElse(null);
 		return new BattleResponse.Summary(me.getTotalScore(), opponent == null ? null : opponent.getTotalScore(),
-			me.getResult(), null);
+			me.getResult(), eloDelta);
 	}
 
 	/** B-06. 내가 참가자로 들어 있는 배틀을 최근 것부터 */
@@ -139,7 +141,8 @@ public class BattleQueryService {
 			battle.getCreatedAt());
 	}
 
-	private static Specification<Battle> mineSpec(long userId, BattleMode mode, BattleStatus status, Long courseId) {
+	/** 내가 참가자로 들어 있는 배틀 조건. 내 배틀 기록(B-06)과 랭킹의 전적 조회가 함께 쓴다. */
+	static Specification<Battle> mineSpec(long userId, BattleMode mode, BattleStatus status, Long courseId) {
 		return (root, query, cb) -> {
 			List<Predicate> conditions = new ArrayList<>();
 			Subquery<Long> mine = query.subquery(Long.class);

@@ -38,6 +38,7 @@ public class BattleResultService {
 	private final BattleQuestionRepository questionRepository;
 	private final BattleAnswerRepository answerRepository;
 	private final QuestionBankService questionBankService;
+	private final BattleEloLookup eloLookup;
 
 	public BattleResultResponse get(long userId, long battleId) {
 		Battle battle = battleRepository.findById(battleId).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
@@ -62,8 +63,12 @@ public class BattleResultService {
 				theirs.get(question.getId()), showOpponentText,
 				question.getSourceAnswerId() == null ? null : retested.get(question.getSourceAnswerId())))
 			.toList();
+		// Elo 는 랭킹 배틀만 바뀐다(연습 배틀은 조회하지 않는다). 반영 전이면 null.
+		BattleResultResponse.Elo elo = battle.isPractice() ? null
+			: eloLookup.find(battleId, userId).map(change -> new BattleResultResponse.Elo(change.before(), change.after(), change.delta()))
+				.orElse(null);
 		return new BattleResultResponse(battle.getMode(), battle.isPractice() ? battle.getSourceBattleId() : null,
-			summary(me), opponent == null ? null : summary(opponent), me.getResult(), null, items);
+			summary(me), opponent == null ? null : summary(opponent), me.getResult(), elo, items);
 	}
 
 	private Map<Long, BattleAnswer> answersByQuestion(BattleParticipant participant) {
