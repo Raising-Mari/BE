@@ -2,12 +2,35 @@
 
 ## 책임
 친구와 방을 만들어 같은 문제 세트를 각자의 제자가 푼다. **비동기 + 폴링** 방식이다 (웹소켓 없음, 실시간 대결은 제외 범위).
+혼자 하는 **연습 배틀**(B-10)도 여기 있다. 설계: [api-spec.md](../../../../../../../docs/api-spec.md) 6절·11-3, 테이블: [erd.md](../../../../../../../docs/erd.md).
+
+## 구조
+- `entity/` — `Battle`(상태 전이 메서드가 허용되지 않은 전이를 `CONFLICT`로 막는다), `BattleParticipant`(준비·풀이 상태), `BattleQuestion`, `BattleAnswer`.
+- `service/` — 방 안에서의 생애와 풀이는 역할별로 나뉜다. **`...Store`는 짧은 트랜잭션, 바깥 문(`...Service`)은 트랜잭션이 없다.**
+  - `BattleRoomService` — 방 만들기(B-01)·입장(B-02)·취소(B-05)·공개 동의(B-08). 사용자 행 → 배틀 행 순으로 잠근다.
+  - `BattleReadyService` → `BattleStartStore` — 준비 완료(B-04)·풀이 재시도(B-09). 커밋된 **뒤에** 풀이를 접수하고, 문항 부족 오류도 커밋 뒤에 던진다.
+  - `BattlePracticeService` → `BattlePracticeStore` — 연습 배틀(B-10).
+  - `BattleSolveDispatcher` → `BattleSolveExecutor`(`@Async`) → `BattleSolveRunner` → `BattleSolveStore` — 제자 풀이(J-03). **AI는 Runner에서, 트랜잭션 밖에서만** 부른다.
+  - `BattleSolveRecovery` — 서버가 시작될 때 풀던 참가자를 다시 접수(J-06).
+  - `BattleExpiryJob` → `BattleExpiryStore` — 입장 시간이 지난 방을 `EXPIRED`로(J-04, 1분마다).
+  - `BattleQueryService` — B-03·B-06과 응답 조립.
+- `logic/` — `RoomCodes`(6자리 코드, 헷갈리는 글자 제외), `NoteIdsJson`.
+- `event/BattleSolvedEvent` — 모두 풀어 채점할 차례가 됐다(채점은 WP9가 받는다).
+- `config/BattleProperties` — `app.battle.*` (방 유효 시간, 풀이 재시도).
 
 ## 규칙
-- 방은 6자리 코드로 입장한다. 같은 방에 중복 입장하거나 자기 자신과 대결할 수 없다.
-- 상태는 enum으로 관리하고(`WAITING → LOBBY → RUNNING → FINISHED`, 그 외 `CANCELED`·`EXPIRED`·`ERROR`) **허용되지 않은 상태 전이는 `CONFLICT`** 로 막는다.
-- 문항 세트는 시작 시점에 뽑아 `battle_question`으로 **고정**한다. 두 참가자는 같은 세트를 푼다.
-- 제자는 **강의자료가 아니라 자기 노트만** 보고 푼다. 노트에 없으면 `모름`으로 답한다.
-- 한 판의 LLM 호출은 **참가자당 1회**(전 문항 일괄)를 목표로 한다. 호출 횟수 제한(한 판 6~10회 안팎)을 넘지 않게 설계한다.
-- 점수 계산은 `grading`, Elo 반영은 `ranking`에 맡긴다. 이 도메인에서 직접 계산하지 않는다.
-- 같은 요청이 두 번 들어와도(새로고침, 재시도) 결과가 중복 생성되지 않게 한다.
+- 방은 6자리 코드로 입장한다. 같은 방에 중복 입장하거나 자기 자신과 대결할 수 없다. 사용자당 진행 중인 `RANKED` 방은 하나다.
+- 상태는 enum으로 관리하고(`WAITING → LOBBY → RUNNING → FINISHED`, 그 외 `CANCELED`·`EXPIRED`·`ERROR`) **상태 전이는 `Battle`의 메서드로만** 한다. 허용되지 않은 전이는 `CONFLICT`.
+- **상태를 바꾸는 모든 요청은 `battles` 행을 `FOR UPDATE`로 먼저 잠근다**(`findLockedById`). "둘 다 준비되면 한 번만 시작", "둘 다 풀면 한 번만 채점"이 이 잠금에 기댄다. 같은 사람의 요청은 `UserLookupService.lockActive`로 먼저 줄 세운다.
+- 문항 세트는 시작 시점에 뽑아 `battle_questions`로 **고정**한다. 두 참가자는 같은 세트를 푼다. 노트 스냅샷은 **각자 준비를 누른 순간** 찍고 다시 쓰지 않는다. 풀이는 항상 그 스냅샷의 노트로 한다.
+- 제자는 **강의자료가 아니라 자기 노트만** 보고 푼다. 노트에 없으면 `모름`이다 — `DiscipleSolver`가 노트 인용이 없는 답을 `모름`으로 강제한다. 노트가 0개면 AI를 부르지 않는다.
+- 한 판의 LLM 호출은 **참가자당 1회**(전 문항 일괄). 실패하면 최대 3회 시도하고, 끝내 실패하면 배틀이 `ERROR`다(Elo 불변). `ERROR`는 참가자 누구나 재시도(B-09)하거나 포기(B-05)한다.
+- 풀이 결과의 답은 `battle_answers`에 `verdict=PENDING`·0점으로 저장한다. **점수·판정은 `grading`(WP9), Elo는 `ranking`(WP10)이 채운다.** 이 도메인은 직접 계산하지 않는다.
+- **진행 중에는 문항·답·상대 노트를 응답에 담지 않는다.** 없는 배틀과 남의 배틀은 같은 `NOT_FOUND`다(`{id}` 경로는 참가자인지 서버가 검사한다).
+- 풀이 접수는 **커밋 뒤에** 한다(`...Service` 바깥 문). 서버가 그 사이에 꺼져도 `BattleSolveRecovery`가 `RUNNING` 배틀의 `PENDING`·`SOLVING` 참가자를 다시 접수한다.
+- 연습 배틀은 원본 랭킹 배틀의 답에서 **같은 문항**을 다시 낸다. `user_question_history`·Elo·전적을 건드리지 않는다.
+- 같은 요청이 두 번 들어와도(새로고침, 재시도) 결과가 중복 생성되지 않게 한다 — 준비·취소·입장은 멱등이다.
+- 로그에 노트·답 내용을 남기지 않는다. 실패 이유에는 오류 코드나 예외 클래스 이름만 쓴다.
+
+## WP9(채점)가 이어받을 것
+`BattleSolvedEvent`를 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 `PENDING` 답을 채점하고, 참가자의 점수·건수·`result`를 채운 뒤 `Battle.finish(now)`로 `FINISHED`를 만든다. B-07(결과)과 `BattleResponse.Summary.eloDelta`(WP10)도 그때 채운다.

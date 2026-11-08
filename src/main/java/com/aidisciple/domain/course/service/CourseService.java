@@ -1,6 +1,7 @@
 package com.aidisciple.domain.course.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,6 +140,15 @@ public class CourseService {
 		return courseRepository.findById(courseId)
 			.filter(course -> course.getSchoolId().equals(user.schoolId()))
 			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+	}
+
+	/** 다른 도메인(배틀 등)이 화면에 과목 이름만 보여 줄 때 쓴다. 없는 과목은 결과에 없다. */
+	public Map<Long, String> findNames(Collection<Long> courseIds) {
+		if (courseIds.isEmpty()) {
+			return Map.of();
+		}
+		return courseRepository.findAllById(courseIds).stream()
+			.collect(Collectors.toMap(Course::getId, Course::getName));
 	}
 
 	private static Specification<Course> searchSpec(long schoolId, String keyword, Long departmentId) {

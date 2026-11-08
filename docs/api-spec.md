@@ -305,6 +305,19 @@
 
 배틀 상태 전이: `WAITING → LOBBY → RUNNING → FINISHED`, `WAITING/LOBBY → CANCELED/EXPIRED`, `RUNNING → ERROR`, **`ERROR → RUNNING`**(B-09로 풀이를 다시 시도할 때), **`ERROR → CANCELED`**(B-05로 참가자가 포기할 때). 연습 배틀은 생성과 동시에 `RUNNING`에서 시작한다. 허용되지 않은 전이는 `409 CONFLICT`.
 
+**구현 메모 (2026-11-09, WP8)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: B-01~B-06, B-08, B-09, B-10, J-03의 풀이 단계, J-04, J-06(배틀). B-07(결과)·채점·Elo·`FINISHED` 전환은 WP9·WP10이다.
+- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **WP9 전에는 배틀이 `RUNNING`(두 참가자 `SOLVED`)에서 멈춘다.** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 전까지 `null`이다.
+- **잠금 순서**: 같은 사람의 요청은 사용자 행(`users`), 같은 배틀의 요청은 배틀 행을 `FOR UPDATE`로 잠가 한 줄로 세운다. 항상 사용자 → 배틀 순서라 교착이 없다. 풀이 작업 접수와 `BATTLE_NOT_ENOUGH_QUESTIONS` 오류는 트랜잭션이 커밋된 **뒤에** 처리한다(곧바로 시작되는 풀이 스레드가 커밋 전 상태를 못 보게, 오류로 롤백돼 두 사람의 준비 해제가 사라지지 않게).
+- **B-01·B-02**: "진행 중인 `RANKED` 방은 하나"(`BATTLE_ALREADY_ACTIVE`)를 입장자에게도 적용한다. 입장 시간이 지난 방은 만료 작업(J-04)이 돌기 전이어도 진행 중으로 치지 않는다. `BATTLE_NOTES_REQUIRED`의 `details`(`courseId`, `unit`)는 B-01·B-04에서도 준다. 다른 학교의 방은 `BATTLE_ROOM_NOT_FOUND`가 아니라 `NOT_FOUND`로 답한다(과목 가시성 검사와 같은 규칙). 이미 들어온 입장자가 다시 호출하면 같은 응답을 준다(새로고침).
+- **B-03·B-06**: 입장 시간이 지난 `WAITING`/`LOBBY`는 `EXPIRED`로 보여 준다(B-02와 같은 기준). 끝난 배틀의 `summary`는 참가자의 `total_score`·`result`를 쓴다.
+- **B-04**: `LOBBY`에서만 누를 수 있다(상대가 오기 전 `WAITING`이면 `409 CONFLICT`). 이미 준비한 사람이 다시 눌러도 `204`이고(시작된 뒤에도), `notesPublic`은 **처음 준비할 때만** 반영한다(그 뒤는 B-08). 문항이 모자라 못 시작하면 `BATTLE_NOT_ENOUGH_QUESTIONS`와 함께 재고 보충 작업(`LOW_STOCK`)을 건다.
+- **B-05**: 이미 `CANCELED`인 방을 다시 취소해도 `204`(두 번 누름). `EXPIRED`·`RUNNING`·`FINISHED`는 `409`.
+- **B-09**: `202`. 실패한 참가자만 다시 접수하고 이미 푼 참가자의 답은 그대로 둔다.
+- **B-10**: `battleAnswerIds`를 생략(null)해야 "맞히지 못한 답 전부"이고, 빈 목록은 "아무것도 고르지 않음"이라 `PRACTICE_NOTHING_TO_REVIEW`다. 생략했을 때 `ZEROED_INJECTION` 답은 대상에서 뺀다. "이미 진행 중인 연습"은 `RUNNING`과 `ERROR`를 센다. 사용량 제한은 B-01과 같은 이름(`battle.create`)으로 함께 센다.
+- **J-03**: 참가자마다 AI는 한 번(전 문항 일괄). 실패하면 최대 3회(처음 1 + 재시도 2) 시도하고 대기는 2초·4초로 늘린다. 끝내 실패하면 배틀이 `ERROR`(이유는 오류 코드만)다. 노트가 0개면(연습 배틀만 가능) AI를 부르지 않고 모두 `모름`으로 저장한다. 작업 큐가 가득 차면 `ERROR`(`QUEUE_FULL`)로 닫고 B-09로 재시도한다. 설정은 `app.battle.*`.
+- **만들지 않은 것**: B-07, 채점(`grading`), Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다.
+
 ---
 
 ## 7. 복기·리뷰·신고 (`domain/review`)
