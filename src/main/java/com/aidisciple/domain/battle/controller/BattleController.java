@@ -20,11 +20,14 @@ import com.aidisciple.domain.battle.dto.BattleResultResponse;
 import com.aidisciple.domain.battle.dto.BattleSummaryResponse;
 import com.aidisciple.domain.battle.dto.CreateBattleRequest;
 import com.aidisciple.domain.battle.dto.CreateBattleResponse;
+import com.aidisciple.domain.battle.dto.CreatePracticeRequest;
+import com.aidisciple.domain.battle.dto.CreatePracticeResponse;
 import com.aidisciple.domain.battle.dto.JoinBattleRequest;
 import com.aidisciple.domain.battle.dto.ReadyRequest;
 import com.aidisciple.domain.battle.entity.BattleMode;
 import com.aidisciple.domain.battle.dto.UpdateParticipantRequest;
 import com.aidisciple.domain.battle.entity.BattleStatus;
+import com.aidisciple.domain.battle.service.BattlePracticeService;
 import com.aidisciple.domain.battle.service.BattleQueryService;
 import com.aidisciple.domain.battle.service.BattleReadyService;
 import com.aidisciple.domain.battle.service.BattleRoomService;
@@ -43,6 +46,7 @@ public class BattleController {
 	private final BattleRoomService roomService;
 	private final BattleQueryService queryService;
 	private final BattleReadyService readyService;
+	private final BattlePracticeService practiceService;
 
 	@Operation(summary = "B-01 방 만들기 (RANKED)")
 	@PostMapping
@@ -92,6 +96,13 @@ public class BattleController {
 		@RequestParam(required = false) Integer size
 	) {
 		return queryService.mine(user.userId(), mode, status, courseId, page, size);
+	}
+
+	@Operation(summary = "B-10 연습 배틀 시작 (혼자, 랭킹 미반영, 복기에서 고른 답의 같은 문항)")
+	@PostMapping("/practice")
+	@ResponseStatus(HttpStatus.CREATED)
+	public CreatePracticeResponse startPractice(@CurrentUser AuthUser user, @Valid @RequestBody CreatePracticeRequest request) {
+		return practiceService.start(user.userId(), request);
 	}
 
 	@Operation(summary = "B-09 제자 풀이 재시도 (ERROR 배틀, 참가자 누구나)")
