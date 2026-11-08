@@ -489,6 +489,20 @@
 - 단계마다 `question_validation_logs`에 `candidate_json`을 남겨 **어느 단계에서 몇 개 탈락했는지** 집계한다.
 - 목표 개수(`targetCount`)를 채울 때까지 최대 3라운드. 한 작업의 AI 호출은 (개념 수/5)+1+1회 수준이다.
 
+
+**구현 메모 (2026-11-08, WP7)** — 일정 때문에 줄인 것과 문서가 정하지 않았던 것.
+- **0단계(개념 추출)는 생략했다**(backend-plan D-7). `questions.concept_id`는 비어 있고, 문항 선택의 "개념이 겹치지 않게"는 개념이 없는 문항을 서로 다른 개념으로 본다.
+- **누출 시험(3단계)은 전용 프롬프트 `leak-test.v1`을 쓴다.** `battle-solve`에 빈 노트를 넣으면 항상 "모름"이라 거르지 못했다(`docs/question-bank-smoke.md`). 코드 채점이 `CORRECT`일 때만 버리고 `AMBIGUOUS`는 남긴다. 핵심 요소형은 노트 조건 없이 센다.
+- 프롬프트의 문장 번호는 **주차 전체 문장에 1부터 새로 붙인다**(자료마다 `seq`가 겹치므로). 응답의 번호를 `material_sentences.id`로 되돌려 `question_evidences`에 저장한다.
+- 한 라운드 = 생성(후보 `batch-size` 5개) + 누출 시험, AI 2회. 자료 문장은 `prompt-sentences-max-chars`(12,000자)씩 잘라 라운드마다 다음 구간을 넣는다. 목표(`target-count` 10)를 채우거나 `max-rounds`(3)에 닿으면 멈춘다. 설정은 `app.question.*`.
+- 중복 판정에는 `RETIRED`가 아닌 모든 문항(`UNDER_REVIEW` 포함)과 같은 작업에서 먼저 통과한 후보를 쓴다.
+- 검증 로그는 후보마다 **끝난 단계에 한 줄**이다: 탈락은 탈락한 단계(`detail_json.failures`), 통과는 `LEAK_TEST`·`passed=true`·`question_id`. 누출 시험의 답은 `detail_json.leakTestAnswer`.
+- 핵심 요소형의 `required_elements`는 요소 수의 80%(올림)다.
+- 작업은 같은 주차에 `QUEUED`·`RUNNING`이 있으면 새로 만들지 않는다. 자료 이벤트는 커밋 후(`AFTER_COMMIT`)에 받고, 그때의 DB 쓰기는 `REQUIRES_NEW`다. 연결이 풀린 주차는 그 자료의 문장을 근거로 쓴 그 주차 문항을 `RETIRED`로 바꾼다. 서버가 시작되면 `QUEUED`·`RUNNING` 작업을 다시 돌린다(J-06).
+- Q-01은 다른 학교의 주차면 `404 NOT_FOUND`다.
+- **배틀(WP8)이 쓸 창구**: `QuestionBankService.pickForBattle`(참가자 누구도 안 본 문항을 배틀 id 시드로 선택, 모자라면 빈 목록), `recordSeen`(랭킹 배틀만), `requestRestock`(B-01에서 문항이 모자랄 때 `LOW_STOCK` 작업). 노트로 문항을 푸는 `DiscipleSolver`(`battle-solve.v1`, 노트 인용이 없으면 `UNKNOWN`으로 강제)도 J-03에서 쓴다.
+- 만들지 않은 것: 4단계 외부 판정(보류, 통과 문항은 모두 `UNJUDGED`), 관리자 수동 생성(`ADMIN` 작업 API), M-05 자료 삭제와의 연결.
+
 ### 11-3. 배틀 시작과 제자 풀이 (J-03)
 
 1. **시작 준비** (B-04, 배틀 행을 `SELECT … FOR UPDATE`로 잠근 트랜잭션에서):
