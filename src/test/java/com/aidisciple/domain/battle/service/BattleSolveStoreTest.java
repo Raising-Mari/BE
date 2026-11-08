@@ -69,6 +69,7 @@ class BattleSolveStoreTest {
 		when(participantRepository.findById(MINE)).thenReturn(Optional.of(mine));
 		when(participantRepository.findById(FRIENDS)).thenReturn(Optional.of(friends));
 		when(participantRepository.findByBattleIdOrderByIdAsc(BATTLE_ID)).thenReturn(List.of(mine, friends));
+		when(participantRepository.findLockedByBattleId(BATTLE_ID)).thenReturn(List.of(mine, friends));
 		BattleQuestion first = battleQuestion(31L, 900L, 1);
 		BattleQuestion second = battleQuestion(32L, 901L, 2);
 		when(questionRepository.findByBattleIdOrderBySeqAsc(BATTLE_ID)).thenReturn(List.of(first, second));
@@ -170,6 +171,23 @@ class BattleSolveStoreTest {
 
 		verify(eventPublisher).publishEvent(new BattleSolvedEvent(BATTLE_ID));
 		assertThat(battle.getStatus()).isEqualTo(BattleStatus.RUNNING);
+	}
+
+	@Test
+	void 둘_다_풀었는지는_일반_읽기가_아니라_잠금_읽기로_본다() {
+		// 일반 읽기(스냅샷)는 상대가 방금 커밋한 풀이 완료를 못 보고 SOLVING 으로 보여 준다 — 낡은 값이다.
+		BattleParticipant staleFriends = participant(FRIENDS, 11L, "[9]");
+		staleFriends.claimSolve();
+		when(participantRepository.findByBattleIdOrderByIdAsc(BATTLE_ID)).thenReturn(List.of(mine, staleFriends));
+		// 잠금 읽기는 최신 값을 본다: 상대는 이미 SOLVED
+		friends.claimSolve();
+		friends.markSolved(1);
+		mine.claimSolve();
+
+		store.complete(MINE, answers(), 1);
+
+		verify(eventPublisher).publishEvent(new BattleSolvedEvent(BATTLE_ID));
+		verify(participantRepository).findLockedByBattleId(BATTLE_ID);
 	}
 
 	@Test
