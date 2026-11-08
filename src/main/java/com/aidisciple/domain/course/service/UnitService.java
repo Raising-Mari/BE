@@ -5,7 +5,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.aidisciple.domain.course.dto.UnitRef;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -84,6 +86,26 @@ public class UnitService {
 		if (unitRepository.findByCourseIdAndIdIn(courseId, requested).size() != requested.size()) {
 			throw new BusinessException(ErrorCode.UNIT_NOT_IN_COURSE);
 		}
+	}
+
+	/** 다른 도메인이 "이 주차가 이 과목 소속인가"를 확인하고 이름까지 받을 때 쓴다. 아니면 UNIT_NOT_IN_COURSE. */
+	public UnitRef requireInCourse(long courseId, long unitId) {
+		return unitRepository.findById(unitId)
+			.filter(unit -> unit.getCourseId() == courseId)
+			.map(UnitService::toRef)
+			.orElseThrow(() -> new BusinessException(ErrorCode.UNIT_NOT_IN_COURSE));
+	}
+
+	public Map<Long, UnitRef> findRefs(Collection<Long> unitIds) {
+		if (unitIds.isEmpty()) {
+			return Map.of();
+		}
+		return unitRepository.findAllById(unitIds).stream()
+			.collect(Collectors.toMap(Unit::getId, UnitService::toRef));
+	}
+
+	private static UnitRef toRef(Unit unit) {
+		return new UnitRef(unit.getId(), unit.getCourseId(), unit.getTitle());
 	}
 
 	private static UnitResponse toResponse(Unit unit) {
