@@ -8,7 +8,7 @@ import com.aidisciple.domain.battle.entity.BattleResult;
 import com.aidisciple.domain.battle.entity.Verdict;
 
 /**
- * B-07 결과 (끝난 배틀만). 점수는 소수다(부분 정답·감점·복붙 보정).
+ * B-07 결과 (끝난 배틀만). 점수는 소수다(부분 정답·감점·복붙 보정). {@code elo} 는 랭킹(WP10) 전까지 null 이다.
  * 모범 답과 자료 근거는 싣지 않는다 — 원본 배틀의 R-01 에서 정답 보기(R-11) 뒤에 본다.
  * 연습 배틀은 {@code opponent}·{@code result}·{@code elo} 가 null 이고 {@code sourceBattleId} 가 있다.
  */

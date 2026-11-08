@@ -30,13 +30,13 @@ import com.aidisciple.domain.battle.entity.BattleStatus;
 import com.aidisciple.domain.battle.service.BattlePracticeService;
 import com.aidisciple.domain.battle.service.BattleQueryService;
 import com.aidisciple.domain.battle.service.BattleReadyService;
+import com.aidisciple.domain.battle.service.BattleResultService;
 import com.aidisciple.domain.battle.service.BattleRoomService;
-import com.aidisciple.global.api.NotImplemented;
 import com.aidisciple.global.api.PageResponse;
 import com.aidisciple.global.security.AuthUser;
 import com.aidisciple.global.security.CurrentUser;
 
-/** 6절 배틀. B-07 결과는 채점(WP9)이 붙이므로 아직 501 이다. */
+/** 6절 배틀 */
 @Tag(name = "배틀")
 @RequiredArgsConstructor
 @RestController
@@ -47,6 +47,7 @@ public class BattleController {
 	private final BattleQueryService queryService;
 	private final BattleReadyService readyService;
 	private final BattlePracticeService practiceService;
+	private final BattleResultService resultService;
 
 	@Operation(summary = "B-01 방 만들기 (RANKED)")
 	@PostMapping
@@ -126,7 +127,7 @@ public class BattleController {
 	@Operation(summary = "B-07 결과 (끝난 배틀만)")
 	@GetMapping("/{battleId}/result")
 	public BattleResultResponse result(@CurrentUser AuthUser user, @PathVariable Long battleId) {
-		return NotImplemented.yet();
+		return resultService.get(user.userId(), battleId);
 	}
 
 }
