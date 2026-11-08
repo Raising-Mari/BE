@@ -89,6 +89,38 @@ app:
     # 생성 프롬프트에 넣는 자료 문장의 글자 수 상한. 라운드마다 다음 구간을 넣는다.
     prompt-sentences-max-chars: 12000
 
+  scoring:
+    # 점수 공식 (api-spec 11-4 의 5·6). 초기값이라 시연 세트로 조정한다. 감점은 양수로 쓴다.
+    correct: 1
+    partial: 0.5
+    wrong-answer-list: 0.5
+    wrong-key-elements: 0.3
+    # 복붙 보정: 답·인용한 노트의 n-gram 이 주차 자료에 들어 있는 비율이 low 이하면 보정 없음, high 이상이면 계수가 min-factor(정답·부분 정답에만 곱한다)
+    copy-low-ratio: 0.5
+    copy-high-ratio: 0.9
+    copy-min-factor: 0.5
+    copy-ngram: 8
+
+  grading:
+    # 애매한 답을 AI 한 번에 판정시키는 최대 개수(넘으면 나눠서 부른다)
+    llm-batch-size: 12
+    # AI 판정 호출의 최대 시도 횟수. 끝내 실패하면 그 답은 UNJUDGED(0점)로 두고 배틀은 끝낸다.
+    llm-max-attempts: 2
+    llm-retry-backoff: 1s
+    # 원인 제안에서 "근거 문장과 겹친다"고 보는 3-gram 겹침 비율의 하한(겹친 조각이 3개 이상일 때만)
+    cause-overlap-threshold: 0.25
+    # 채점자를 겨냥한 지시문. 답이나 사용한 노트에 있으면 그 문항은 0점이다. 일반 글에 걸리는 말이 있으면(예: 노트의 "채점 서버") 여기서 뺀다.
+    injection-patterns:
+      - 정답으로 처리
+      - 정답으로 간주
+      - 정답 처리
+      - 만점
+      - 채점
+      - ignore
+      - system prompt
+      - 위 지시
+      - 이전 지시
+
   battle:
     # 방 코드로 입장할 수 있는 시간. 지나면 만료 작업(J-04)이 EXPIRED 로 바꾼다.
     room-ttl: 30m
