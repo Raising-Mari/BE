@@ -10,5 +10,7 @@ public enum Verdict {
 	WRONG,
 	UNKNOWN,
 	ZEROED_INJECTION,
-	UNJUDGED
+	UNJUDGED,
+	/** 풀이는 끝났지만 아직 채점하지 않은 답(WP8). 채점(WP9)이 다른 값으로 바꾸므로 끝난 배틀에는 남지 않는다. */
+	PENDING
 }

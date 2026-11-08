@@ -89,6 +89,16 @@ app:
     # 생성 프롬프트에 넣는 자료 문장의 글자 수 상한. 라운드마다 다음 구간을 넣는다.
     prompt-sentences-max-chars: 12000
 
+  battle:
+    # 방 코드로 입장할 수 있는 시간. 지나면 만료 작업(J-04)이 EXPIRED 로 바꾼다.
+    room-ttl: 30m
+    # 제자 풀이 AI 호출의 최대 시도 횟수(처음 1회 + 재시도). 끝내 실패하면 배틀은 ERROR 가 된다.
+    solve-max-attempts: 3
+    # 재시도 전 첫 대기 시간. 시도마다 2배로 늘린다.
+    solve-retry-backoff: 2s
+    # 만료된 방을 찾는 주기 (api-spec J-04: 1분)
+    expiry-sweep-interval: 1m
+
   teaching:
     # ADD 노트 검증: content 의 글자 3-gram 이 학생 메시지에 포함되는 비율의 하한 (초기값, 시연 세트로 조정)
     min-overlap: 0.6
