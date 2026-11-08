@@ -100,4 +100,10 @@ public class QuestionGenerationJob extends BaseTimeEntity {
 			: reason.substring(0, FAIL_REASON_MAX);
 	}
 
+	/** 서버 재시작으로 끊긴 작업을 다시 대기 상태로 돌린다 (J-06) */
+	public void requeue() {
+		this.status = JobStatus.QUEUED;
+		this.startedAt = null;
+	}
+
 }

@@ -16,4 +16,5 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
 	/** 서버가 재시작되면 메모리에 있던 파일 내용이 사라지므로, 끝나지 못한 자료를 찾아 실패로 돌린다. */
 	List<Material> findByStatusIn(Collection<MaterialStatus> statuses);
 
+	List<Material> findByIdInAndStatusOrderByIdAsc(Collection<Long> ids, MaterialStatus status);
 }
