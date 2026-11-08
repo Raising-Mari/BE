@@ -58,4 +58,7 @@ public interface BattleRepository extends JpaRepository<Battle, Long>, JpaSpecif
 	@Query("select b.id from Battle b where b.status = :status order by b.id")
 	List<Long> findIdsByStatus(@Param("status") BattleStatus status);
 
+	/** 끝난 순서대로. 서버가 시작될 때 Elo 가 빠진 랭킹 배틀을 순서대로 반영하는 데 쓴다. */
+	List<Battle> findByModeAndStatusOrderByFinishedAtAscIdAsc(BattleMode mode, BattleStatus status);
+
 }

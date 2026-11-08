@@ -45,8 +45,9 @@ class BattleResultServiceTest {
 	private final BattleQuestionRepository questionRepository = mock(BattleQuestionRepository.class);
 	private final BattleAnswerRepository answerRepository = mock(BattleAnswerRepository.class);
 	private final QuestionBankService questionBankService = mock(QuestionBankService.class);
+	private final BattleEloLookup eloLookup = mock(BattleEloLookup.class);
 	private final BattleResultService service = new BattleResultService(battleRepository, participantRepository,
-		questionRepository, answerRepository, questionBankService);
+		questionRepository, answerRepository, questionBankService, eloLookup);
 
 	private Battle battle;
 	private BattleParticipant mine;
@@ -101,7 +102,7 @@ class BattleResultServiceTest {
 		assertThat(result.result()).isEqualTo(BattleResult.WIN);
 		assertThat(result.me()).isEqualTo(new BattleResultResponse.ScoreSummary(new BigDecimal("1.50"), 1, 1, 0, 0));
 		assertThat(result.opponent()).isEqualTo(new BattleResultResponse.ScoreSummary(new BigDecimal("0.00"), 0, 0, 1, 1));
-		assertThat(result.elo()).isNull();   // Elo 는 랭킹(WP10)이 생기면 채운다
+		assertThat(result.elo()).isNull();   // 반영 전(조회 결과 없음)이면 null
 		assertThat(result.questions()).extracting(BattleResultResponse.QuestionResult::seq).containsExactly(1, 2);
 		assertThat(result.questions()).extracting(BattleResultResponse.QuestionResult::stem).containsExactly("스택이란?", "큐란?");
 
@@ -112,6 +113,17 @@ class BattleResultServiceTest {
 		assertThat(first.opponentVerdict()).isEqualTo(Verdict.WRONG);
 		assertThat(first.opponentScore()).isEqualByComparingTo("-0.50");
 		assertThat(first.retestOf()).isNull();
+	}
+
+	@Test
+	void 랭킹_배틀의_결과에는_내_Elo_변화가_있고_반영_전이면_null이다() {
+		when(eloLookup.find(BATTLE_ID, ME)).thenReturn(Optional.of(new BattleEloLookup.EloChange(1000, 1016, 16)));
+
+		BattleResultResponse withElo = service.get(ME, BATTLE_ID);
+		BattleResultResponse notYet = service.get(FRIEND, BATTLE_ID);
+
+		assertThat(withElo.elo()).isEqualTo(new BattleResultResponse.Elo(1000, 1016, 16));
+		assertThat(notYet.elo()).isNull();
 	}
 
 	@Test

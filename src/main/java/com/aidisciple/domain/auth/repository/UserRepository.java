@@ -1,5 +1,6 @@
 package com.aidisciple.domain.auth.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -22,6 +23,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	boolean existsByNickname(String nickname);
 
 	Optional<User> findByNickname(String nickname);
+
+	/** 학과 순위(K-01)가 그 학과 학생을 모을 때 쓴다. 탈퇴 여부는 서비스가 거른다. */
+	List<User> findByDepartmentId(Long departmentId);
 
 	/** 같은 사용자의 요청을 한 줄로 세워야 할 때(진행 중 배틀은 하나뿐) 쓰는 잠금 조회 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

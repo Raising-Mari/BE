@@ -53,8 +53,9 @@ class BattleQueryServiceTest {
 	private final UserLookupService userLookupService = mock(UserLookupService.class);
 	private final CourseService courseService = mock(CourseService.class);
 	private final UnitService unitService = mock(UnitService.class);
+	private final BattleEloLookup eloLookup = mock(BattleEloLookup.class);
 	private final BattleQueryService service = new BattleQueryService(battleRepository, participantRepository,
-		userLookupService, courseService, unitService, Clock.fixed(NOW, ZoneOffset.UTC));
+		userLookupService, courseService, unitService, Clock.fixed(NOW, ZoneOffset.UTC), eloLookup);
 
 	private BattleParticipant mine;
 	private BattleParticipant friends;
@@ -128,11 +129,34 @@ class BattleQueryServiceTest {
 		assertThat(summary.myScore()).isEqualByComparingTo("3.00");
 		assertThat(summary.opponentScore()).isEqualByComparingTo("1.20");
 		assertThat(summary.result()).isEqualTo(BattleResult.WIN);
-		assertThat(summary.eloDelta()).isNull();   // Elo 는 랭킹(WP10)이 생기면 채운다
+		assertThat(summary.eloDelta()).isNull();   // 반영 전(조회 결과 없음)이면 null
 
 		BattleResponse fromFriend = service.get(FRIEND, BATTLE_ID);
 		assertThat(fromFriend.summary().result()).isEqualTo(BattleResult.LOSE);
 		assertThat(fromFriend.summary().myScore()).isEqualByComparingTo("1.20");
+	}
+
+	@Test
+	void 랭킹_배틀의_summary에는_내_Elo_변화를_싣는다() {
+		battle(BattleStatus.FINISHED);
+		when(eloLookup.find(BATTLE_ID, ME)).thenReturn(Optional.of(new BattleEloLookup.EloChange(1000, 1016, 16)));
+		when(eloLookup.find(BATTLE_ID, FRIEND)).thenReturn(Optional.of(new BattleEloLookup.EloChange(1000, 984, -16)));
+
+		assertThat(service.get(ME, BATTLE_ID).summary().eloDelta()).isEqualTo(16);
+		assertThat(service.get(FRIEND, BATTLE_ID).summary().eloDelta()).isEqualTo(-16);
+	}
+
+	@Test
+	void 연습_배틀의_summary는_Elo를_조회하지_않는다() {
+		Battle practice = Battle.startPractice(1L, 2L, 9L, 2, ME, NOW);
+		ReflectionTestUtils.setField(practice, "id", 70L);
+		ReflectionTestUtils.setField(practice, "status", BattleStatus.FINISHED);
+		BattleParticipant only = BattleParticipant.practice(70L, ME, 100L, "[]", 0, NOW);
+		when(battleRepository.findById(70L)).thenReturn(Optional.of(practice));
+		when(participantRepository.findByBattleIdOrderByIdAsc(70L)).thenReturn(List.of(only));
+
+		assertThat(service.get(ME, 70L).summary().eloDelta()).isNull();
+		org.mockito.Mockito.verifyNoInteractions(eloLookup);
 	}
 
 	@Test

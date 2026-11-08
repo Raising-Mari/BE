@@ -1,6 +1,7 @@
 package com.aidisciple.domain.auth.service;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aidisciple.domain.auth.dto.UserRef;
+import com.aidisciple.domain.auth.dto.UserSummary;
 import com.aidisciple.domain.auth.entity.User;
 import com.aidisciple.domain.auth.repository.UserRepository;
 import com.aidisciple.global.error.BusinessException;
@@ -42,6 +44,23 @@ public class UserLookupService {
 			.filter(User::isActive)
 			.map(user -> new UserRef(user.getId(), user.getSchoolId(), user.getDepartmentId()))
 			.orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+	}
+
+	/** 화면에 보여 줄 사용자 요약(닉네임·학과). 없는 사용자는 결과에 없다. */
+	public Map<Long, UserSummary> summaries(Collection<Long> userIds) {
+		if (userIds.isEmpty()) {
+			return Map.of();
+		}
+		return userRepository.findAllById(userIds).stream()
+			.collect(Collectors.toMap(User::getId, user -> new UserSummary(user.getId(), user.getNickname(), user.getDepartmentId())));
+	}
+
+	/** 그 학과의 활성 사용자 id */
+	public List<Long> activeUserIdsInDepartment(long departmentId) {
+		return userRepository.findByDepartmentId(departmentId).stream()
+			.filter(User::isActive)
+			.map(User::getId)
+			.toList();
 	}
 
 	/** 화면에 보여 줄 닉네임. 없는 사용자는 결과에 없다. */
