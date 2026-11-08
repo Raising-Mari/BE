@@ -155,8 +155,9 @@ public class BattleSolveStore {
 		return new Recovery(toSolve);
 	}
 
+	/** 다른 참가자가 방금 커밋한 풀이 완료를 놓치지 않도록 잠금 읽기로 본다(스냅샷 읽기는 낡은 값을 줄 수 있다). */
 	private boolean allSolved(long battleId) {
-		return participantRepository.findByBattleIdOrderByIdAsc(battleId).stream()
+		return participantRepository.findLockedByBattleId(battleId).stream()
 			.allMatch(participant -> participant.getSolveStatus() == SolveStatus.SOLVED);
 	}
 
