@@ -2,6 +2,8 @@ package com.aidisciple.domain.question.service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,6 +64,17 @@ public class QuestionBankService {
 			.map(question -> new QuestionPicker.Candidate(question.getId(), question.getConceptId()))
 			.toList();
 		return QuestionPicker.pick(candidates, count, battleId);
+	}
+
+	/**
+	 * 배틀 풀이(J-03)가 제자에게 보여 줄 문항 본문(id → 본문). 학생에게 내려보내는 값이 아니라 제자 풀이의 입력으로만 쓴다.
+	 */
+	public Map<Long, String> stems(Collection<Long> questionIds) {
+		if (questionIds.isEmpty()) {
+			return Map.of();
+		}
+		return questionRepository.findAllById(questionIds).stream()
+			.collect(Collectors.toMap(question -> question.getId(), question -> question.getStem()));
 	}
 
 	/** 랭킹 배틀에 고정된 문항을 참가자마다 "본 문항"으로 남긴다. 연습 배틀은 부르지 않는다. */
