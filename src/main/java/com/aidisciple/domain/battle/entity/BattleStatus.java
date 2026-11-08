@@ -15,8 +15,11 @@ public enum BattleStatus {
 	EXPIRED,
 	ERROR;
 
-	/** 같은 사용자가 동시에 하나만 가질 수 있는 "진행 중" 상태 */
-	public static final List<BattleStatus> IN_PROGRESS = List.of(WAITING, LOBBY, RUNNING, ERROR);
+	/** 시작 전의 방. 입장 시간(expires_at)이 지나면 진행 중으로 치지 않는다. */
+	public static final List<BattleStatus> OPEN_ROOM = List.of(WAITING, LOBBY);
+
+	/** 시작한 뒤 아직 끝나지 않은 배틀. 진행 중 = OPEN_ROOM + STARTED */
+	public static final List<BattleStatus> STARTED = List.of(RUNNING, ERROR);
 
 	/** 방 코드로 입장·준비를 할 수 있는, 아직 시작 전인 상태 */
 	public boolean isOpenRoom() {

@@ -3,8 +3,10 @@ package com.aidisciple.domain.battle.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,35 +23,42 @@ import com.aidisciple.domain.battle.dto.CreateBattleResponse;
 import com.aidisciple.domain.battle.dto.JoinBattleRequest;
 import com.aidisciple.domain.battle.dto.ReadyRequest;
 import com.aidisciple.domain.battle.entity.BattleMode;
+import com.aidisciple.domain.battle.dto.UpdateParticipantRequest;
 import com.aidisciple.domain.battle.entity.BattleStatus;
+import com.aidisciple.domain.battle.service.BattleQueryService;
+import com.aidisciple.domain.battle.service.BattleRoomService;
 import com.aidisciple.global.api.NotImplemented;
 import com.aidisciple.global.api.PageResponse;
 import com.aidisciple.global.security.AuthUser;
 import com.aidisciple.global.security.CurrentUser;
 
-/** 6절 배틀 (WP8, B-07 결과는 WP9). P1 인 B-08·B-09·B-10 은 이 스켈레톤에 넣지 않았다. */
+/** 6절 배틀. B-07 결과는 채점(WP9)이 붙이므로 아직 501 이다. */
 @Tag(name = "배틀")
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/battles")
 public class BattleController {
+
+	private final BattleRoomService roomService;
+	private final BattleQueryService queryService;
 
 	@Operation(summary = "B-01 방 만들기 (RANKED)")
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public CreateBattleResponse create(@CurrentUser AuthUser user, @Valid @RequestBody CreateBattleRequest request) {
-		return NotImplemented.yet();
+		return roomService.create(user.userId(), request);
 	}
 
 	@Operation(summary = "B-02 방 코드로 입장")
 	@PostMapping("/join")
 	public BattleResponse join(@CurrentUser AuthUser user, @Valid @RequestBody JoinBattleRequest request) {
-		return NotImplemented.yet();
+		return roomService.join(user.userId(), request);
 	}
 
 	@Operation(summary = "B-03 방·진행 상태 (2~3초 폴링)")
 	@GetMapping("/{battleId}")
 	public BattleResponse get(@CurrentUser AuthUser user, @PathVariable Long battleId) {
-		return NotImplemented.yet();
+		return queryService.get(user.userId(), battleId);
 	}
 
 	@Operation(summary = "B-04 준비 완료 (누른 순간 내 노트 스냅샷 저장, 멱등)")
@@ -67,7 +76,7 @@ public class BattleController {
 	@PostMapping("/{battleId}/cancel")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void cancel(@CurrentUser AuthUser user, @PathVariable Long battleId) {
-		NotImplemented.yet();
+		roomService.cancel(user.userId(), battleId);
 	}
 
 	@Operation(summary = "B-06 내 배틀 기록 (mode=PRACTICE 가 연습 배틀 기록)")
@@ -80,7 +89,18 @@ public class BattleController {
 		@RequestParam(required = false) Integer page,
 		@RequestParam(required = false) Integer size
 	) {
-		return NotImplemented.yet();
+		return queryService.mine(user.userId(), mode, status, courseId, page, size);
+	}
+
+	@Operation(summary = "B-08 내 노트 공개 동의 변경")
+	@PatchMapping("/{battleId}/participants/me")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void updateMe(
+		@CurrentUser AuthUser user,
+		@PathVariable Long battleId,
+		@Valid @RequestBody UpdateParticipantRequest request
+	) {
+		roomService.changeNotesPublic(user.userId(), battleId, request.notesPublic());
 	}
 
 	@Operation(summary = "B-07 결과 (끝난 배틀만)")

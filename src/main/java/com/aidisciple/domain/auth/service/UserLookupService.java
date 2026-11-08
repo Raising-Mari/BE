@@ -1,5 +1,9 @@
 package com.aidisciple.domain.auth.service;
 
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +30,27 @@ public class UserLookupService {
 			.filter(User::isActive)
 			.map(user -> new UserRef(user.getId(), user.getSchoolId(), user.getDepartmentId()))
 			.orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+	}
+
+	/**
+	 * {@link #requireActive} 와 같지만 사용자 행을 잠근다. 같은 사용자의 요청이 겹치면(방 만들기 두 번 클릭 등)
+	 * 한 줄로 서서 "진행 중 배틀은 하나" 같은 확인이 함께 통과하지 않는다. 쓰기 트랜잭션 안에서만 부른다.
+	 */
+	@Transactional
+	public UserRef lockActive(long userId) {
+		return userRepository.findLockedById(userId)
+			.filter(User::isActive)
+			.map(user -> new UserRef(user.getId(), user.getSchoolId(), user.getDepartmentId()))
+			.orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+	}
+
+	/** 화면에 보여 줄 닉네임. 없는 사용자는 결과에 없다. */
+	public Map<Long, String> nicknames(Collection<Long> userIds) {
+		if (userIds.isEmpty()) {
+			return Map.of();
+		}
+		return userRepository.findAllById(userIds).stream()
+			.collect(Collectors.toMap(User::getId, User::getNickname));
 	}
 
 }

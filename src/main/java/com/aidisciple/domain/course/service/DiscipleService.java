@@ -1,6 +1,8 @@
 package com.aidisciple.domain.course.service;
 
 import com.aidisciple.domain.course.dto.DiscipleRef;
+import java.util.Optional;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -59,6 +61,12 @@ public class DiscipleService {
 			.filter(disciple -> disciple.getUserId() == userId)
 			.map(disciple -> new DiscipleRef(disciple.getId(), disciple.getUserId(), disciple.getCourseId()))
 			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+	}
+
+	/** 배틀이 "이 사용자가 이 과목에 제자가 있는가"를 확인할 때 쓴다. 없으면 빈 값. */
+	public Optional<DiscipleRef> findByUserAndCourse(long userId, long courseId) {
+		return discipleRepository.findByUserIdAndCourseId(userId, courseId)
+			.map(disciple -> new DiscipleRef(disciple.getId(), disciple.getUserId(), disciple.getCourseId()));
 	}
 
 	private static DiscipleResponse toResponse(Disciple disciple) {

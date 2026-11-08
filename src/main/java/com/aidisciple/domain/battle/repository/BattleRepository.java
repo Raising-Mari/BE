@@ -32,14 +32,23 @@ public interface BattleRepository extends JpaRepository<Battle, Long>, JpaSpecif
 	/** 만료·취소·종료된 방도 코드가 남아 있어 가장 최근 방을 찾는다. */
 	Optional<Battle> findFirstByRoomCodeOrderByIdDesc(String roomCode);
 
-	/** 사용자가 참가자로 들어 있는, 해당 모드의 진행 중 배틀이 있는가 */
+	/**
+	 * 사용자가 참가자로 들어 있는, 해당 모드의 진행 중 배틀이 있는가. 입장 시간이 지난 방은 만료 작업(J-04)이
+	 * 아직 안 돌았어도 진행 중으로 치지 않는다 — 방금 만료된 방 때문에 새 방을 못 만드는 일이 없게.
+	 */
 	@Query("""
 		select count(b) > 0 from Battle b
-		where b.mode = :mode and b.status in :statuses
+		where b.mode = :mode
+		  and ((b.status in :openStatuses and b.expiresAt > :now) or b.status in :startedStatuses)
 		  and exists (select 1 from BattleParticipant p where p.battleId = b.id and p.userId = :userId)
 		""")
 	boolean existsInProgress(@Param("userId") Long userId, @Param("mode") BattleMode mode,
-							 @Param("statuses") Collection<BattleStatus> statuses);
+							 @Param("openStatuses") Collection<BattleStatus> openStatuses,
+							 @Param("startedStatuses") Collection<BattleStatus> startedStatuses, @Param("now") Instant now);
+
+	default boolean hasInProgress(Long userId, BattleMode mode, Instant now) {
+		return existsInProgress(userId, mode, BattleStatus.OPEN_ROOM, BattleStatus.STARTED, now);
+	}
 
 	/** J-04: 입장 시간이 지난 방의 id. 한 건씩 잠그고 처리하려고 id 만 가져온다. */
 	@Query("select b.id from Battle b where b.status in :statuses and b.expiresAt <= :now order by b.id")
