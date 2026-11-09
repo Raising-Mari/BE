@@ -70,14 +70,20 @@ public class QuestionJobService {
 							 List<SourceSentence> sentences, List<String> existingStems) {
 	}
 
-	/** 같은 주차에 대기·실행 중인 작업이 있으면 새로 만들지 않는다 (빈 값). */
+	/** 같은 주차에 대기·실행 중인 작업이 있으면 새로 만들지 않는다 (빈 값). 목표 문항 수는 설정값. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Optional<Long> queue(long unitId, JobTriggerType trigger, Long requestedBy) {
+		return queue(unitId, trigger, requestedBy, properties.targetCount());
+	}
+
+	/** 관리자 수동 실행(X-01)처럼 목표 문항 수를 정해서 건다. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public Optional<Long> queue(long unitId, JobTriggerType trigger, Long requestedBy, int targetCount) {
 		if (jobRepository.existsByUnitIdAndStatusIn(unitId, OPEN)) {
 			return Optional.empty();
 		}
 		QuestionGenerationJob job = jobRepository.save(
-			QuestionGenerationJob.queue(unitId, trigger, requestedBy, properties.targetCount()));
+			QuestionGenerationJob.queue(unitId, trigger, requestedBy, targetCount));
 		return Optional.of(job.getId());
 	}
 
