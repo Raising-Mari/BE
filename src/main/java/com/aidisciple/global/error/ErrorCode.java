@@ -51,6 +51,7 @@ public enum ErrorCode {
 	BATTLE_NOTES_REQUIRED(HttpStatus.CONFLICT, "이 주차에 제자가 배운 노트가 없습니다. 먼저 제자를 가르쳐 주세요."),
 	PRACTICE_NOTHING_TO_REVIEW(HttpStatus.CONFLICT, "다시 풀어 볼 수 있는 문제가 없습니다."),
 	PRACTICE_ANSWERS_REVEALED(HttpStatus.CONFLICT, "정답을 이미 본 배틀은 연습 배틀로 다시 풀 수 없습니다."),
+	REPORT_DUPLICATE(HttpStatus.CONFLICT, "이 답에는 같은 종류의 신고를 이미 접수했습니다."),
 
 	AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 사용량이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 시도해 주세요."),
 	AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
