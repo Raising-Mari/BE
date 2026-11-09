@@ -17,6 +17,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.aidisciple.global.error.BusinessException;
+import com.aidisciple.global.error.ErrorCode;
 import com.aidisciple.global.jpa.BaseTimeEntity;
 
 /**
@@ -111,6 +113,20 @@ public class Question extends BaseTimeEntity {
 		return question;
 	}
 
+
+	/** 관리자가 직접 만든 문항(X-06). 사람이 만들었으니 VERIFIED 로 저장하고, 누출 시험은 거치지 않았으므로 false 다. */
+	public static Question manual(Long courseId, Long unitId, String stem, GradingMode gradingMode, String answersJson,
+								  String keyElementsJson, Integer requiredElements, String referenceAnswer,
+								  String evidenceText, Long adminId, Instant now) {
+		Question question = fromAi(courseId, unitId, stem, gradingMode, answersJson, keyElementsJson, requiredElements,
+			referenceAnswer, evidenceText, QuestionStatus.VERIFIED, null);
+		question.source = QuestionSource.MANUAL;
+		question.leakTestPassed = false;
+		question.reviewedBy = adminId;
+		question.reviewedAt = now;
+		return question;
+	}
+
 	/** 근거 자료가 지워지거나 주차 연결이 풀렸다. 이후 배틀에서 빠진다. */
 	public void retire() {
 		this.status = QuestionStatus.RETIRED;
@@ -119,6 +135,23 @@ public class Question extends BaseTimeEntity {
 	/** 학생이 문항을 신고했다(R-03). 관리자가 검토할 때까지 배틀에서 빠진다. */
 	public void markUnderReview() {
 		this.status = QuestionStatus.UNDER_REVIEW;
+	}
+
+
+	/**
+	 * 관리자 검수(X-05). VERIFIED·UNDER_REVIEW·RETIRED 끼리는 서로 바꿀 수 있고, UNJUDGED 에서는 VERIFIED(검수 통과)·RETIRED 로만 간다.
+	 * UNJUDGED 로 되돌릴 수는 없다. 같은 상태로 바꾸면 검수자·시각만 새로 남는다.
+	 */
+	public void reviewByAdmin(QuestionStatus next, Long adminId, Instant now) {
+		if (next == QuestionStatus.UNJUDGED) {
+			throw new BusinessException(ErrorCode.CONFLICT, "검수 대기(UNJUDGED)로는 되돌릴 수 없습니다.");
+		}
+		if (status == QuestionStatus.UNJUDGED && next == QuestionStatus.UNDER_REVIEW) {
+			throw new BusinessException(ErrorCode.CONFLICT, "검수 대기 문항은 통과(VERIFIED) 또는 폐기(RETIRED)로만 바꿀 수 있습니다.");
+		}
+		this.status = next;
+		this.reviewedBy = adminId;
+		this.reviewedAt = now;
 	}
 
 }

@@ -79,4 +79,13 @@ public class Report extends BaseTimeEntity {
 		return report;
 	}
 
+
+	/** X-08 관리자 처리. 다시 처리하면 마지막 처리로 덮어쓴다. */
+	public void handle(ReportStatus status, String resolutionNote, Long adminId, Instant now) {
+		this.status = status;
+		this.resolutionNote = resolutionNote;
+		this.handledBy = adminId;
+		this.handledAt = now;
+	}
+
 }
