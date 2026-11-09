@@ -428,6 +428,17 @@
 | X-11 | `GET /api/admin/stats/usage` | 시험 사용 지표 (재방문, 연습 배틀 후 정답 비율, 오진단 건수 등) | P2 |
 | X-12 | `GET /api/admin/exports/battle-answers.csv` | 채점 일치도 비교용 내보내기 | P2 |
 
+
+**구현 메모 (2026-11-09, WP12)** — 시험 사용에 꼭 필요한 것부터 만들었다.
+- **만든 것**: X-01~X-05, X-07, X-08, X-10. 권한은 `SecurityConfig`가 `/api/admin/**` 경로로 ADMIN만 통과시키고, 컨트롤러는 따로 검사하지 않는다. 관리자 API는 그 데이터를 가진 도메인에 둔다 — 문항·작업은 `domain/question`, 신고는 `domain/review`, AI 통계는 `ai/log`.
+- **X-01**: 본문을 생략하면 목표 수는 `app.question.target-count`(1~30만 받는다). 같은 주차에 대기·실행 중인 작업이 있으면 `409 CONFLICT`. 접수가 커밋된 **뒤에** 실행기로 넘긴다(자료 처리 완료 때와 같은 경로).
+- **X-02**: `rejectedByStage`는 그 작업의 검증 기록 중 탈락(`passed=false`)을 단계별로 센 값이다.
+- **X-03·X-04**: 최신순. `usedCount`는 배틀(연습 포함)에 나온 횟수, `correctRate`는 채점된 답(PENDING 제외) 중 `CORRECT` 비율이고 답이 없으면 `null`. 배틀 쪽 숫자는 `BattleQuestionStatsService`로만 읽는다. X-04의 검증 기록은 그 문항이 통과한 단계만 나온다(탈락 후보에는 문항 id가 없다).
+- **X-05**: `UNJUDGED → UNDER_REVIEW`와 `→ UNJUDGED`는 `409`. 같은 상태로 바꾸면 검수자·시각만 새로 남는다. 응답은 X-04와 같은 상세다.
+- **X-08**: 처리 상태로 `OPEN`은 받지 않는다(`400`). `questionAction`은 생략하면 `NONE`이고, `RESTORE`는 문항을 `VERIFIED`로 되돌린다(관리자가 확인했으므로). 다시 처리하면 마지막 처리로 덮어쓴다.
+- **X-10**: 날짜는 **한국 시간** 기준으로 묶고(`days` 1~31, 기본 7), 호출이 없는 날도 0으로 나온다. Gemini 무료 한도는 미국 태평양 시간 자정, 즉 **한국 시간 오후 4~5시**에 초기화되니 볼 때 감안한다.
+- **만들지 않은 것**: X-06(문항 직접 추가), X-09(정답률 통계 — X-03의 `correctRate`로 대신 볼 수 있다), X-11·X-12(P2).
+
 ---
 
 ## 10. 내부 작업 (API 아님)
