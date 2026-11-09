@@ -15,4 +15,8 @@ public interface QuestionEvidenceRepository extends JpaRepository<QuestionEviden
 	@Query("select distinct e.id.questionId from QuestionEvidence e where e.id.sentenceId in :sentenceIds")
 	List<Long> findQuestionIdsBySentenceIds(@Param("sentenceIds") Collection<Long> sentenceIds);
 
+
+	/** 복기(R-01)에서 문항마다 근거 문장을 한 번에 읽는다 */
+	List<QuestionEvidence> findByIdQuestionIdIn(Collection<Long> questionIds);
+
 }

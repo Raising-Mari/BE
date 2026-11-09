@@ -11,3 +11,10 @@
 - 리뷰에는 "좋았던 점"과 "보완할 점"을 근거와 함께 받는다.
 - 문항 신고·이의제기가 접수되면 해당 문항을 `UNDER_REVIEW`로 바꿔 배틀에서 빼고, 검토 대기 목록에 올린다.
 - 복기·리뷰 기록은 시험 사용에서 학습 효과를 확인하는 자료이므로 삭제하지 않고 쌓는다.
+
+
+## 구조 (WP11)
+- `entity/` — `ReviewEntry`(답마다 한 줄, 다시 저장하면 고친다), `Report`(접수만, 처리는 관리자 X-08).
+- `service/ReviewService` — R-01·R-02·R-03·R-11. 배틀은 `BattleReviewService`로만, 문항은 `QuestionLookupService`·`QuestionBankService`로만, 노트는 `NoteLookupService`로만 읽는다.
+- 정답 보기(R-11) 전에는 모범 답·근거를 `null`로 두어 JSON에서 필드 자체를 뺀다. 이 판단은 이 도메인이 한다(배틀·문항 도메인은 값을 그대로 넘긴다).
+- 쓰기가 있는 메서드에는 `@Transactional`을 꼭 붙인다. 클래스가 `readOnly`라 빠뜨리면 저장되지 않는다(R-11에서 한 번 빠뜨렸다).

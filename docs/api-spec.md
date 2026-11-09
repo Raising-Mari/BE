@@ -316,8 +316,7 @@
 - **B-09**: `202`. 실패한 참가자만 다시 접수하고 이미 푼 참가자의 답은 그대로 둔다.
 - **B-10**: `battleAnswerIds`를 생략(null)해야 "맞히지 못한 답 전부"이고, 빈 목록은 "아무것도 고르지 않음"이라 `PRACTICE_NOTHING_TO_REVIEW`다. 생략했을 때 `ZEROED_INJECTION` 답은 대상에서 뺀다. "이미 진행 중인 연습"은 `RUNNING`과 `ERROR`를 센다. 사용량 제한은 B-01과 같은 이름(`battle.create`)으로 함께 센다.
 - **J-03**: 참가자마다 AI는 한 번(전 문항 일괄). 실패하면 최대 3회(처음 1 + 재시도 2) 시도하고 대기는 2초·4초로 늘린다. 끝내 실패하면 배틀이 `ERROR`(이유는 오류 코드만)다. 노트가 0개면(연습 배틀만 가능) AI를 부르지 않고 모두 `모름`으로 저장한다. 작업 큐가 가득 차면 `ERROR`(`QUEUE_FULL`)로 닫고 B-09로 재시도한다. 설정은 `app.battle.*`.
-- **만들지 않은 것**: Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다. (B-07·채점은 WP9에서 만들었다.)
-
+- **만들지 않은 것**: Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다. (B-07·채점은 WP9에서, R-11은 WP11에서 만들었다.)
 ---
 
 ## 7. 복기·리뷰·신고 (`domain/review`)
@@ -373,6 +372,16 @@
 **R-06** 끝난 `RANKED` 배틀에서, **두 참가자가 모두 `notesPublic=true`일 때만**. 아니면 `REVIEW_NOTES_NOT_PUBLIC`(403). 각자 준비 완료를 누른 시점의 스냅샷(`note_ids_json`) 기준 노트를 돌려준다.
 
 **R-07** `{ "goodPoints", "suggestions", "evidenceNoteEntryId"? }` → `201`. 배틀당 1회(`REVIEW_ALREADY_SUBMITTED`). 두 사람이 모두 공개 동의한 배틀에서, 상대의 공개된 노트만 대상으로 쓸 수 있다(아니면 `REVIEW_NOTES_NOT_PUBLIC`).
+
+
+**구현 메모 (2026-11-09, WP11)** — P0(R-01~R-03, R-11)를 만들면서 정한 것.
+- **만든 것**: R-01, R-02, R-03, R-11. 배틀은 `BattleReviewService`(복기가 배틀을 읽고 쓰는 유일한 창구)로만 읽고 쓴다. 문항은 `QuestionLookupService.reviewQuestions`·`QuestionBankService.markUnderReview`, 근거 자료 제목은 `MaterialSourceService.materialTitlesOf`로 읽는다.
+- **검사 순서**: B-07과 같다. 없는 배틀·남의 배틀·남의 답은 `NOT_FOUND` → 연습 배틀은 `INVALID_INPUT` → 끝나지 않았으면 `BATTLE_NOT_FINISHED`. R-02·R-03도 **끝난 `RANKED` 배틀의 내 답**에만 쓸 수 있다.
+- **R-01**: 항목은 내 답 전부(seq 순). `usedNotes`는 그 답이 인용한 노트(`cited_note_ids_json`)이고, 준비 순간 스냅샷의 노트라 그 뒤에 고쳐도 그때 내용이 나온다. `causeSuggestion`은 `CORRECT`면 `null`. `injectionFlag`는 답의 플래그가 켜졌거나 `ZEROED_INJECTION`일 때 `true`. `evidence.materialTitle`은 근거 문장 중 id가 가장 작은 문장의 자료 제목이고, 근거 연결이 없으면 `null`. 정답 보기 뒤에도 근거 문장이 없는 문항은 `evidence`를 뺀다.
+- **R-02**: 빈 문자열 메모는 `null`로 저장한다. 다시 저장하면 모든 칸을 덮어쓴다(보내지 않은 메모는 지워진다).
+- **R-03**: 같은 답·같은 종류는 서버가 먼저 막고(`REPORT_DUPLICATE`) DB UNIQUE가 한 번 더 막는다. `QUESTION` 신고는 이미 `RETIRED`인 문항을 되살리지 않는다. 처리(X-08)는 WP12.
+- **R-11**: 배틀 행을 잠그고 기록한다. 시각은 마이크로초로 잘라 저장해(DB `DATETIME(6)`) 두 번째 응답과 같은 값이 나온다.
+- **만들지 않은 것**: R-06~R-08(노트 교환 리뷰), R-09, R-10(P1·P2).
 
 ---
 

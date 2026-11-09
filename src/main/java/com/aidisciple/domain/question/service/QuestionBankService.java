@@ -17,6 +17,7 @@ import com.aidisciple.domain.course.service.CourseService;
 import com.aidisciple.domain.course.service.UnitService;
 import com.aidisciple.domain.question.config.QuestionProperties;
 import com.aidisciple.domain.question.dto.BattleReadinessResponse;
+import com.aidisciple.domain.question.entity.Question;
 import com.aidisciple.domain.question.entity.JobTriggerType;
 import com.aidisciple.domain.question.entity.QuestionStatus;
 import com.aidisciple.domain.question.entity.UserQuestionHistory;
@@ -90,6 +91,18 @@ public class QuestionBankService {
 			.filter(question -> question.getStatus() != QuestionStatus.UNDER_REVIEW && question.getStatus() != QuestionStatus.RETIRED)
 			.map(question -> question.getId())
 			.collect(Collectors.toSet());
+	}
+
+
+	/**
+	 * R-03 문항 신고: 관리자가 검토할 때까지 새 배틀·연습 배틀에서 뺀다(UNDER_REVIEW).
+	 * 이미 폐기(RETIRED)된 문항은 그대로 둔다 — 신고로 폐기된 문항이 되살아나면 안 된다.
+	 */
+	@Transactional
+	public void markUnderReview(long questionId) {
+		questionRepository.findById(questionId)
+			.filter(question -> question.getStatus() != QuestionStatus.RETIRED)
+			.ifPresent(Question::markUnderReview);
 	}
 
 	/** 랭킹 배틀에 고정된 문항을 참가자마다 "본 문항"으로 남긴다. 연습 배틀은 부르지 않는다. */

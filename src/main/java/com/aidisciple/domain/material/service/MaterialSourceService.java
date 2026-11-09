@@ -2,6 +2,10 @@ package com.aidisciple.domain.material.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -53,6 +57,26 @@ public class MaterialSourceService {
 		return sentenceRepository.findByMaterialIdOrderBySeq(materialId).stream()
 			.map(MaterialSentence::getId)
 			.toList();
+	}
+
+
+	/** 문장 id → 그 문장이 들어 있는 자료의 제목 (복기에서 근거 문장의 출처를 보여 줄 때) */
+	public Map<Long, String> materialTitlesOf(Collection<Long> sentenceIds) {
+		if (sentenceIds.isEmpty()) {
+			return new HashMap<>();
+		}
+		List<MaterialSentence> sentences = sentenceRepository.findAllById(sentenceIds);
+		Map<Long, String> titleByMaterial = materialRepository.findAllById(
+				sentences.stream().map(MaterialSentence::getMaterialId).distinct().toList()).stream()
+			.collect(Collectors.toMap(Material::getId, Material::getTitle));
+		Map<Long, String> titles = new HashMap<>();
+		for (MaterialSentence sentence : sentences) {
+			String title = titleByMaterial.get(sentence.getMaterialId());
+			if (title != null) {
+				titles.put(sentence.getId(), title);
+			}
+		}
+		return titles;
 	}
 
 }

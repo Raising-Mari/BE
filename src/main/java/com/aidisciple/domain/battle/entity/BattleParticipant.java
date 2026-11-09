@@ -206,4 +206,17 @@ public class BattleParticipant extends BaseTimeEntity {
 		return true;
 	}
 
+	public boolean isAnswersRevealed() {
+		return answersRevealedAt != null;
+	}
+
+	/** R-11 정답 보기. 되돌릴 수 없고, 이미 열었으면 처음 연 시각을 그대로 돌려준다(멱등). 내 행에만 기록한다. */
+	public Instant revealAnswers(Instant now) {
+		if (answersRevealedAt == null) {
+			answersRevealedAt = now;
+		}
+		return answersRevealedAt;
+	}
+
+
 }

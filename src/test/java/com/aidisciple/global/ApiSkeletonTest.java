@@ -42,13 +42,6 @@ class ApiSkeletonTest {
 	}
 
 	@Test
-	void 구현전_로그인_API는_501을_준다() throws Exception {
-		mockMvc.perform(get("/api/battles/1/review").header("Authorization", "Bearer " + studentToken()))
-			.andExpect(status().isNotImplemented())
-			.andExpect(jsonPath("$.code").value("NOT_IMPLEMENTED"));
-	}
-
-	@Test
 	void 요청_값이_틀리면_구현전이어도_400을_준다() throws Exception {
 		mockMvc.perform(post("/api/battles")
 				.header("Authorization", "Bearer " + studentToken())
