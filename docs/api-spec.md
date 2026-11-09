@@ -430,15 +430,18 @@
 
 
 **구현 메모 (2026-11-09, WP12)** — 시험 사용에 꼭 필요한 것부터 만들었다.
-- **만든 것**: X-01~X-05, X-07, X-08, X-10. 권한은 `SecurityConfig`가 `/api/admin/**` 경로로 ADMIN만 통과시키고, 컨트롤러는 따로 검사하지 않는다. 관리자 API는 그 데이터를 가진 도메인에 둔다 — 문항·작업은 `domain/question`, 신고는 `domain/review`, AI 통계는 `ai/log`.
-- **X-01**: 본문을 생략하면 목표 수는 `app.question.target-count`(1~30만 받는다). 같은 주차에 대기·실행 중인 작업이 있으면 `409 CONFLICT`. 접수가 커밋된 **뒤에** 실행기로 넘긴다(자료 처리 완료 때와 같은 경로).
+- **만든 것**: X-01~X-12 전부.
+- - **X-01**: 본문을 생략하면 목표 수는 `app.question.target-count`(1~30만 받는다). 같은 주차에 대기·실행 중인 작업이 있으면 `409 CONFLICT`. 접수가 커밋된 **뒤에** 실행기로 넘긴다(자료 처리 완료 때와 같은 경로).
 - **X-02**: `rejectedByStage`는 그 작업의 검증 기록 중 탈락(`passed=false`)을 단계별로 센 값이다.
 - **X-03·X-04**: 최신순. `usedCount`는 배틀(연습 포함)에 나온 횟수, `correctRate`는 채점된 답(PENDING 제외) 중 `CORRECT` 비율이고 답이 없으면 `null`. 배틀 쪽 숫자는 `BattleQuestionStatsService`로만 읽는다. X-04의 검증 기록은 그 문항이 통과한 단계만 나온다(탈락 후보에는 문항 id가 없다).
 - **X-05**: `UNJUDGED → UNDER_REVIEW`와 `→ UNJUDGED`는 `409`. 같은 상태로 바꾸면 검수자·시각만 새로 남는다. 응답은 X-04와 같은 상세다.
 - **X-08**: 처리 상태로 `OPEN`은 받지 않는다(`400`). `questionAction`은 생략하면 `NONE`이고, `RESTORE`는 문항을 `VERIFIED`로 되돌린다(관리자가 확인했으므로). 다시 처리하면 마지막 처리로 덮어쓴다.
 - **X-10**: 날짜는 **한국 시간** 기준으로 묶고(`days` 1~31, 기본 7), 호출이 없는 날도 0으로 나온다. Gemini 무료 한도는 미국 태평양 시간 자정, 즉 **한국 시간 오후 4~5시**에 초기화되니 볼 때 감안한다.
-- **만들지 않은 것**: X-06(문항 직접 추가), X-09(정답률 통계 — X-03의 `correctRate`로 대신 볼 수 있다), X-11·X-12(P2).
-
+- **X-06**: 사람이 만든 문항이라 `source=MANUAL`, 바로 `VERIFIED`로 저장한다(검수자·시각은 만든 관리자). 누출 시험은 거치지 않아 `leakTestPassed=false`이고, 근거는 강의자료 문장과 연결하지 않고 글(`evidenceText`)로만 남는다(R-01의 `evidence.materialTitle`은 `null`). `ANSWER_LIST`는 `answers`, `KEY_ELEMENTS`는 `keyElements`(+`requiredElements`, 생략하면 요소 전부)가 없으면 `400`.
+- **X-09·X-11·X-12**: 여러 도메인 테이블을 한꺼번에 세는 **읽기 전용 집계**라, 도메인 창구 대신 `domain/admin`에서 SQL로 직접 센다(쓰기는 하지 않는다). 개인을 알아볼 수 있는 값은 내보내지 않는다.
+- **X-09**: **랭킹 배틀**에서 채점된 답이 `minAnswers`(기본 5)개 이상인 문항만. 정답률 ≤ 0.1은 `tooHard`, ≥ 0.9는 `tooEasy`.
+- **X-11**: `days` 1~90(기본 7), 한국 시간. 활동 = 학생 가르치기 메시지 또는 배틀 참가. `returningStudents`는 서로 다른 이틀 이상 활동한 학생, `practiceRetest.improvedFromWrong`은 원래 맞히지 못한 답이 연습에서 정답이 된 수, `reviews.causeDisagreed`는 학생이 고른 원인이 서버 제안과 다른 복기(오진단 후보)다.
+- **X-12**: 끝난 배틀의 답마다 한 줄(`days` 1~365, 기본 30, `courseId` 선택). 학생 id·이름·메일은 넣지 않는다. 엑셀용 UTF-8 BOM을 붙이고, `=`·`+`·`-`·`@`로 시작하는 글 칸은 앞에 `'`를 붙여 수식으로 실행되지 않게 한다(CSV 인젝션).
 ---
 
 ## 10. 내부 작업 (API 아님)
