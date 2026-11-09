@@ -3,6 +3,8 @@ package com.aidisciple.global;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -278,7 +280,129 @@ class AdminApiTest {
 			.andExpect(status().isBadRequest());
 	}
 
+	// --- X-06 문항 직접 추가 ---
+
+	@Test
+	void 관리자가_직접_만든_문항은_MANUAL로_바로_VERIFIED이고_정답_정보가_없으면_400이다() throws Exception {
+		mockMvc.perform(post("/api/admin/questions").header("Authorization", bearer(admin))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"unitId": %d, "stem": "스택의 동작 방식은?", "gradingMode": "ANSWER_LIST", "answers": ["후입선출", "LIFO"],
+					 "referenceAnswer": "후입선출", "evidenceText": "스택은 나중에 넣은 것이 먼저 나온다."}
+					""".formatted(unitId)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.source").value("MANUAL"))
+			.andExpect(jsonPath("$.status").value("VERIFIED"))
+			.andExpect(jsonPath("$.leakTestPassed").value(false))
+			.andExpect(jsonPath("$.answers[1]").value("LIFO"))
+			.andExpect(jsonPath("$.reviewedBy").value(admin.getId()));
+
+		mockMvc.perform(post("/api/admin/questions").header("Authorization", bearer(admin))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"unitId": %d, "stem": "스택이란?", "gradingMode": "ANSWER_LIST",
+					 "referenceAnswer": "후입선출", "evidenceText": "근거"}
+					""".formatted(unitId)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+		mockMvc.perform(post("/api/admin/questions").header("Authorization", bearer(admin))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"unitId": %d, "stem": "스택이란?", "gradingMode": "KEY_ELEMENTS",
+					 "keyElements": [{"label": "후입선출"}, {"label": "push"}], "requiredElements": 3,
+					 "referenceAnswer": "후입선출", "evidenceText": "근거"}
+					""".formatted(unitId)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+	}
+
+	// --- X-09·X-11·X-12 통계·내보내기 ---
+
+	@Test
+	void 모두_틀린_문항은_너무_어렵고_모두_맞힌_문항은_너무_쉽다() throws Exception {
+		long hard = newQuestion("트리란?", QuestionStatus.VERIFIED);
+		long easy = newQuestion("큐란?", QuestionStatus.VERIFIED);
+		twoPlayerBattle(hard, Verdict.WRONG, Verdict.UNKNOWN, easy, Verdict.CORRECT, Verdict.CORRECT);
+
+		mockMvc.perform(get("/api/admin/stats/questions").param("unitId", String.valueOf(unitId)).param("minAnswers", "2")
+				.header("Authorization", bearer(admin)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.tooHard.length()").value(1))
+			.andExpect(jsonPath("$.tooHard[0].questionId").value(hard))
+			.andExpect(jsonPath("$.tooHard[0].correctRate").value(0.0))
+			.andExpect(jsonPath("$.tooEasy.length()").value(1))
+			.andExpect(jsonPath("$.tooEasy[0].questionId").value(easy))
+			.andExpect(jsonPath("$.tooEasy[0].correctRate").value(1.0));
+	}
+
+	@Test
+	void 사용_지표는_오늘_끝난_배틀과_참가한_학생을_센다() throws Exception {
+		long questionId = newQuestion("스택이란?", QuestionStatus.VERIFIED);
+		long other = newQuestion("큐란?", QuestionStatus.VERIFIED);
+		twoPlayerBattle(questionId, Verdict.CORRECT, Verdict.WRONG, other, Verdict.WRONG, Verdict.CORRECT);
+
+		mockMvc.perform(get("/api/admin/stats/usage").param("days", "1").header("Authorization", bearer(admin)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.zone").value("Asia/Seoul"))
+			.andExpect(jsonPath("$.activeStudents").value(greaterThanOrEqualTo(2)))
+			.andExpect(jsonPath("$.rankedBattlesFinished").value(greaterThanOrEqualTo(1)));
+
+		mockMvc.perform(get("/api/admin/stats/usage").param("days", "0").header("Authorization", bearer(admin)))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 채점_CSV에는_답마다_한_줄이_나오고_학생_정보는_없다() throws Exception {
+		long questionId = newQuestion("스택이란?", QuestionStatus.VERIFIED);
+		long other = newQuestion("=1+1 큐란?", QuestionStatus.VERIFIED);
+		twoPlayerBattle(questionId, Verdict.CORRECT, Verdict.WRONG, other, Verdict.WRONG, Verdict.CORRECT);
+
+		mockMvc.perform(get("/api/admin/exports/battle-answers.csv").param("days", "1")
+				.param("courseId", String.valueOf(courseId)).header("Authorization", bearer(admin)))
+			.andExpect(status().isOk())
+			.andExpect(content().contentTypeCompatibleWith("text/csv"))			.andExpect(content().string(containsString("battle_id,mode,finished_at")))
+			.andExpect(content().string(containsString("스택이란?" + suffix)))
+			// 수식으로 실행되지 않게 ' 를 붙인다 (CSV 인젝션 방지)
+			.andExpect(content().string(containsString("'=1+1 큐란?" + suffix)));
+
+		mockMvc.perform(get("/api/admin/exports/battle-answers.csv").param("days", "0").header("Authorization", bearer(admin)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+	}
+
 	// --- 준비 도우미 ---
+
+
+	/** 앨리스·밥이 두 문항을 푼, 방금 끝난 랭킹 배틀. 판정은 [앨리스, 밥] 순서로 문항마다 준다. */
+	private void twoPlayerBattle(long first, Verdict aliceFirst, Verdict bobFirst,
+								 long second, Verdict aliceSecond, Verdict bobSecond) {
+		Battle battle = Battle.openRoom(courseId, unitId, 3, alice.getId(), "ZZZZZ5", Instant.now());
+		ReflectionTestUtils.setField(battle, "status", BattleStatus.FINISHED);
+		ReflectionTestUtils.setField(battle, "activeRoomCode", null);
+		ReflectionTestUtils.setField(battle, "finishedAt", Instant.now());
+		long battleId = battleRepository.saveAndFlush(battle).getId();
+		long q1 = battleQuestionRepository.saveAndFlush(BattleQuestion.of(battleId, first, 1, null)).getId();
+		long q2 = battleQuestionRepository.saveAndFlush(BattleQuestion.of(battleId, second, 2, null)).getId();
+		long aliceParticipant = participant(battleId, alice, "마리");
+		long bobParticipant = participant(battleId, bob, "토리");
+		gradedAnswer(aliceParticipant, q1, aliceFirst);
+		gradedAnswer(bobParticipant, q1, bobFirst);
+		gradedAnswer(aliceParticipant, q2, aliceSecond);
+		gradedAnswer(bobParticipant, q2, bobSecond);
+	}
+
+	private long participant(long battleId, User user, String discipleName) {
+		long discipleId = discipleRepository.saveAndFlush(Disciple.create(user.getId(), courseId, discipleName, null)).getId();
+		return participantRepository.saveAndFlush(
+			BattleParticipant.joined(battleId, user.getId(), discipleId, user.getId().equals(alice.getId()), Instant.now())).getId();
+	}
+
+	private void gradedAnswer(long participantId, long battleQuestionId, Verdict verdict) {
+		BattleAnswer answer = BattleAnswer.solved(participantId, battleQuestionId, "답", false, "[]");
+		ReflectionTestUtils.setField(answer, "verdict", verdict);
+		answerRepository.saveAndFlush(answer);
+	}
 
 	private org.springframework.test.web.servlet.ResultActions changeStatus(long questionId, String status) throws Exception {
 		return mockMvc.perform(patch("/api/admin/questions/{id}/status", questionId).header("Authorization", bearer(admin))
