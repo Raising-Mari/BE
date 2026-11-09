@@ -2,6 +2,7 @@ package com.aidisciple.domain.battle.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -82,9 +83,8 @@ public class BattleReviewService {
 		BattleParticipant me = participantRepository.findByBattleIdAndUserId(battleId, userId)
 			.orElseThrow(BattleReviewService::notFound);
 		requireFinishedRanked(battle);
-		return me.revealAnswers(clock.instant());
+		return me.revealAnswers(clock.instant().truncatedTo(ChronoUnit.MICROS));
 	}
-
 	private static void requireFinishedRanked(Battle battle) {
 		if (battle.isPractice()) {
 			throw new BusinessException(ErrorCode.INVALID_INPUT);
