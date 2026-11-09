@@ -113,6 +113,20 @@ public class Question extends BaseTimeEntity {
 		return question;
 	}
 
+
+	/** 관리자가 직접 만든 문항(X-06). 사람이 만들었으니 VERIFIED 로 저장하고, 누출 시험은 거치지 않았으므로 false 다. */
+	public static Question manual(Long courseId, Long unitId, String stem, GradingMode gradingMode, String answersJson,
+								  String keyElementsJson, Integer requiredElements, String referenceAnswer,
+								  String evidenceText, Long adminId, Instant now) {
+		Question question = fromAi(courseId, unitId, stem, gradingMode, answersJson, keyElementsJson, requiredElements,
+			referenceAnswer, evidenceText, QuestionStatus.VERIFIED, null);
+		question.source = QuestionSource.MANUAL;
+		question.leakTestPassed = false;
+		question.reviewedBy = adminId;
+		question.reviewedAt = now;
+		return question;
+	}
+
 	/** 근거 자료가 지워지거나 주차 연결이 풀렸다. 이후 배틀에서 빠진다. */
 	public void retire() {
 		this.status = QuestionStatus.RETIRED;

@@ -9,14 +9,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 import com.aidisciple.domain.battle.dto.QuestionUsage;
 import com.aidisciple.domain.battle.service.BattleQuestionStatsService;
+import com.aidisciple.domain.course.dto.UnitRef;
+import com.aidisciple.domain.course.service.UnitService;
 import com.aidisciple.domain.question.dto.AdminQuestionDetail;
 import com.aidisciple.domain.question.dto.AdminQuestionSummary;
+import com.aidisciple.domain.question.dto.CreateManualQuestionRequest;
 import com.aidisciple.domain.question.dto.GradingQuestion;
+import com.aidisciple.domain.question.entity.GradingMode;
 import com.aidisciple.domain.question.entity.Question;
 import com.aidisciple.domain.question.entity.QuestionStatus;
+import com.aidisciple.domain.question.logic.KeyElement;
 import com.aidisciple.domain.question.repository.QuestionRepository;
 import com.aidisciple.domain.question.repository.QuestionValidationLogRepository;
 import com.aidisciple.global.api.PageResponse;
@@ -25,7 +31,7 @@ import com.aidisciple.global.error.BusinessException;
 import com.aidisciple.global.error.ErrorCode;
 
 /**
- * 관리자 문항 관리 X-03·X-04·X-05. 권한은 SecurityConfig 가 /api/admin/** 경로로 이미 막는다.
+ * 관리자 문항 관리 X-03·X-04·X-05·X-06. 권한은 SecurityConfig 가 /api/admin/** 경로로 이미 막는다.
  * 사용 횟수·정답률은 배틀 도메인의 {@link BattleQuestionStatsService} 로만 읽는다.
  */
 @Service
@@ -37,6 +43,8 @@ public class AdminQuestionService {
 	private final QuestionValidationLogRepository validationLogRepository;
 	private final QuestionLookupService questionLookupService;
 	private final BattleQuestionStatsService statsService;
+	private final UnitService unitService;
+	private final JsonMapper jsonMapper;
 	private final Clock clock;
 
 	/** X-03: 최신순. status=UNJUDGED 로 검수 대기 문항만 본다. */
@@ -74,6 +82,40 @@ public class AdminQuestionService {
 			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 		question.reviewByAdmin(next, adminId, clock.instant());
 		return detail(questionId);
+	}
+
+	/** X-06: 채점 방식에 맞는 정답 정보가 없으면 400. 만든 문항은 바로 배틀에 쓸 수 있다(VERIFIED). */
+	@Transactional
+	public AdminQuestionDetail create(long adminId, CreateManualQuestionRequest request) {
+		UnitRef unit = unitService.findRefs(List.of(request.unitId())).get(request.unitId());
+		if (unit == null) {
+			throw new BusinessException(ErrorCode.NOT_FOUND);
+		}
+		String answersJson = null;
+		String keyElementsJson = null;
+		Integer requiredElements = null;
+		if (request.gradingMode() == GradingMode.ANSWER_LIST) {
+			if (request.answers() == null || request.answers().isEmpty()) {
+				throw new BusinessException(ErrorCode.INVALID_INPUT, "ANSWER_LIST 문항은 정답 표현(answers)이 1개 이상 있어야 합니다.");
+			}
+			answersJson = jsonMapper.writeValueAsString(request.answers().stream().map(String::strip).toList());
+		} else {
+			if (request.keyElements() == null || request.keyElements().isEmpty()) {
+				throw new BusinessException(ErrorCode.INVALID_INPUT, "KEY_ELEMENTS 문항은 핵심 요소(keyElements)가 1개 이상 있어야 합니다.");
+			}
+			List<KeyElement> elements = request.keyElements().stream()
+				.map(element -> new KeyElement(element.label().strip(), element.aliases()))
+				.toList();
+			requiredElements = request.requiredElements() == null ? elements.size() : request.requiredElements();
+			if (requiredElements < 1 || requiredElements > elements.size()) {
+				throw new BusinessException(ErrorCode.INVALID_INPUT, "requiredElements 는 1 이상, 핵심 요소 수 이하여야 합니다.");
+			}
+			keyElementsJson = jsonMapper.writeValueAsString(elements);
+		}
+		Question saved = questionRepository.save(Question.manual(unit.courseId(), unit.id(), request.stem().strip(),
+			request.gradingMode(), answersJson, keyElementsJson, requiredElements, request.referenceAnswer().strip(),
+			request.evidenceText().strip(), adminId, clock.instant()));
+		return detail(saved.getId());
 	}
 
 	private static AdminQuestionSummary toSummary(Question question, QuestionUsage usage) {
