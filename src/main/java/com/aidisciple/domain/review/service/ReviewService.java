@@ -107,6 +107,7 @@ public class ReviewService {
 	}
 
 	/** R-11: 정답 보기. 되돌릴 수 없고 멱등이다(이미 열었으면 처음 연 시각). */
+	@Transactional
 	public RevealAnswersResponse revealAnswers(long userId, long battleId) {
 		Instant revealedAt = battleReviewService.revealAnswers(userId, battleId);
 		return new RevealAnswersResponse(true, revealedAt);
