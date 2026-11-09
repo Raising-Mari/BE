@@ -3,6 +3,8 @@ package com.aidisciple.domain.question.repository;
 import java.util.Collection;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,5 +37,14 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 		""")
 	List<Question> findUnseenByAll(@Param("unitId") Long unitId,
 								   @Param("statuses") Collection<QuestionStatus> statuses, @Param("userIds") Collection<Long> userIds);
+
+
+	/** X-03 관리자 문항 목록. 조건이 null 이면 거르지 않는다(정렬은 Pageable 로). */
+	@Query("""
+		select q from Question q
+		where (:unitId is null or q.unitId = :unitId)
+		  and (:status is null or q.status = :status)
+		""")
+	Page<Question> search(@Param("unitId") Long unitId, @Param("status") QuestionStatus status, Pageable pageable);
 
 }
