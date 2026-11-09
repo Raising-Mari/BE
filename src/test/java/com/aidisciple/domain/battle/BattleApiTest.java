@@ -142,6 +142,8 @@ class BattleApiTest {
 	LlmClient llmClient;
 
 	private String suffix;
+	/** addNote 가 넣는 채팅 메시지 턴 번호 (같은 제자·주차에 노트를 여러 개 넣어도 유니크 제약에 걸리지 않게) */
+	private int turnSeq = 0;
 	private long schoolId;
 	private User alice;
 	private User bob;
@@ -602,7 +604,7 @@ class BattleApiTest {
 
 	private void addNote(long discipleId, String content) {
 		ChatMessage message = chatMessageRepository.saveAndFlush(
-			ChatMessage.student(discipleId, unitId, 1, content, UUID.randomUUID().toString()));
+			ChatMessage.student(discipleId, unitId, ++turnSeq, content, UUID.randomUUID().toString()));
 		noteEntryRepository.saveAndFlush(NoteEntry.create(discipleId, unitId, content, content, message.getId(), null, 1, "{}"));
 	}
 
