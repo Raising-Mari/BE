@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aidisciple.domain.battle.dto.NoteExchangeRef;
 import com.aidisciple.domain.battle.dto.ReviewAnswerRef;
 import com.aidisciple.domain.battle.dto.ReviewableBattle;
 import com.aidisciple.domain.battle.entity.Battle;
@@ -84,6 +85,23 @@ public class BattleReviewService {
 			.orElseThrow(BattleReviewService::notFound);
 		requireFinishedRanked(battle);
 		return me.revealAnswers(clock.instant().truncatedTo(ChronoUnit.MICROS));
+	}
+
+	/** R-06~R-08: 끝난 RANKED 배틀의 상대, 공개 동의 여부, 상대가 준비 순간 스냅샷한 노트 id. 참가자가 아니면 NOT_FOUND. */
+	public NoteExchangeRef loadNoteExchange(long userId, long battleId) {
+		Battle battle = battleRepository.findById(battleId).orElseThrow(BattleReviewService::notFound);
+		List<BattleParticipant> participants = participantRepository.findByBattleIdOrderByIdAsc(battleId);
+		BattleParticipant me = participants.stream()
+			.filter(participant -> participant.getUserId() == userId)
+			.findFirst()
+			.orElseThrow(BattleReviewService::notFound);
+		requireFinishedRanked(battle);
+		BattleParticipant opponent = participants.stream()
+			.filter(participant -> participant.getUserId() != userId)
+			.findFirst()
+			.orElseThrow(BattleReviewService::notFound);
+		return new NoteExchangeRef(battleId, opponent.getUserId(), me.isNotesPublic() && opponent.isNotesPublic(),
+			NoteIdsJson.read(opponent.getNoteIdsJson()));
 	}
 	private static void requireFinishedRanked(Battle battle) {
 		if (battle.isPractice()) {

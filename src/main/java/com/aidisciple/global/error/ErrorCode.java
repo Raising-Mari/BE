@@ -52,6 +52,8 @@ public enum ErrorCode {
 	PRACTICE_NOTHING_TO_REVIEW(HttpStatus.CONFLICT, "다시 풀어 볼 수 있는 문제가 없습니다."),
 	PRACTICE_ANSWERS_REVEALED(HttpStatus.CONFLICT, "정답을 이미 본 배틀은 연습 배틀로 다시 풀 수 없습니다."),
 	REPORT_DUPLICATE(HttpStatus.CONFLICT, "이 답에는 같은 종류의 신고를 이미 접수했습니다."),
+	REVIEW_NOTES_NOT_PUBLIC(HttpStatus.FORBIDDEN, "두 사람이 모두 노트 공개에 동의한 배틀에서만 상대 노트를 볼 수 있습니다."),
+	REVIEW_ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이 배틀에는 이미 노트 리뷰를 썼습니다."),
 
 	AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 사용량이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 시도해 주세요."),
 	AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
