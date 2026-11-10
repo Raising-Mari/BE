@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aidisciple.domain.teaching.dto.ChatMessageResponse;
 import com.aidisciple.domain.teaching.dto.NotesResponse;
+import com.aidisciple.domain.teaching.dto.MergeNotesRequest;
+import com.aidisciple.domain.teaching.dto.MergeNotesResponse;
+import com.aidisciple.domain.teaching.service.NoteMergeService;
 import com.aidisciple.domain.teaching.dto.SendMessageRequest;
 import com.aidisciple.domain.teaching.dto.TeachingTurnResponse;
 import com.aidisciple.domain.teaching.service.TeachingQueryService;
@@ -24,8 +27,7 @@ import com.aidisciple.global.api.PageResponse;
 import com.aidisciple.global.security.AuthUser;
 import com.aidisciple.global.security.CurrentUser;
 
-/** 4절 가르치기 (WP6). 노트를 직접 고치거나 지우는 API 는 만들지 않는다 — 고치려면 대화로 다시 말한다. */
-@Tag(name = "가르치기")
+/** 4절 가르치기 (WP6). 노트를 직접 고치거나 지우는 API 는 만들지 않는다 — 고치려면 대화로 다시 말한다. 합치기(T-05)는 상태만 바꾼다. */@Tag(name = "가르치기")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/disciples/{discipleId}")
@@ -33,6 +35,7 @@ public class TeachingController {
 
 	private final TeachingService teachingService;
 	private final TeachingQueryService teachingQueryService;
+	private final NoteMergeService noteMergeService;
 
 	@Operation(summary = "T-01 학생 메시지 전송 → 제자 답 + 노트 변경")
 	@PostMapping("/messages")
@@ -65,6 +68,17 @@ public class TeachingController {
 		@RequestParam(required = false) Long unitId
 	) {
 		return teachingQueryService.notes(user.userId(), discipleId, unitId);
+	}
+
+
+	@Operation(summary = "T-05 확인 카드에서 노트 합치기 (내용은 그대로, merge 노트만 MERGED)")
+	@PostMapping("/notes/merge")
+	public MergeNotesResponse mergeNotes(
+		@CurrentUser AuthUser user,
+		@PathVariable Long discipleId,
+		@Valid @RequestBody MergeNotesRequest request
+	) {
+		return noteMergeService.merge(user.userId(), discipleId, request);
 	}
 
 }
