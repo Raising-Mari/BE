@@ -6,6 +6,7 @@ BE 레포에 두는 이유: FE·BE 팀원이 모두 보는 문서의 원본이�
 - [erd.md](erd.md): DB 설계 (테이블·관계·JSON 구조·마이그레이션 분할)
 - [api-spec.md](api-spec.md): API 목록과 핵심 로직 (**구현 전까지만 쓰는 착수용 계약서**. 구현이 시작되면 원본은 Swagger)
 - [backend-plan.md](backend-plan.md): 결정 사항, 작업 순서(WP), 일정, 자르는 순서, 테스트 계획
+- [operations-sql.md](operations-sql.md): API 대신 SQL로 처리하는 운영 절차 (M-05 자료 삭제)
 
 ## 규칙
 - **API 명세의 원본은 Swagger(`/v3/api-docs`)다.** 같은 내용을 마크다운으로 따로 쓰지 않는다 (금방 어긋난다).

@@ -123,6 +123,7 @@
 | M-03 | `GET /api/materials/{id}` | 로그인(올린 사람) | 처리 상태 + 연결된 주차 조회 (폴링) | P0 | 5 |
 | M-04 | `GET /api/courses/{courseId}/materials` | 로그인 | 내가 올린 자료 목록 (메타데이터 + 연결된 주차 id) | P0 | 5 |
 | M-05 | `DELETE /api/materials/{id}` | 로그인(올린 사람) | 자료 삭제 → 근거로 쓰인 문항 `RETIRED` | P1 | 5 |
+> **M-05는 API로 만들지 않는다**(팀 결정 2026-11-09). 자료 삭제는 [operations-sql.md](operations-sql.md)의 SQL 절차로 한다.
 | M-06 | `PUT /api/materials/{id}/units` | 로그인(올린 사람) | 이 자료가 출처가 될 주차를 지정(전체 교체) `{ "unitIds": [3, 4] }` | P0 | 5 |
 
 **자료는 과목에 올리고, 주차는 나중에 고른다**. 한 자료를 여러 주차에 연결할 수 있고, **자료 전체**가 연결된 모든 주차의 출처가 된다(쪽·문장 범위 지정 없음). 주차에 연결되지 않은 자료는 저장만 되고 문항을 만들지 않는다.
@@ -508,8 +509,8 @@
 - `note_entries.verification_detail_json`은 `ADD`면 `{"op":"ADD","passed":true,"mergedCount":n}`, `UPDATE`면 `{"skipped":true,"op":"UPDATE"}`다. 검증기가 겹침 비율 같은 수치를 돌려주지 않아 erd 4절 예시의 수치는 아직 남기지 않는다.
 - 탈락 변경의 `target_entry_id`는 `TARGET_NOT_FOUND`면 비운다(없는 노트 id는 외래키에 걸린다).
 - T-02는 최신 메시지가 먼저 오는 페이지다(0페이지 = 가장 최근).
-- 아직 하지 않은 것: `pasteWarning`(항상 `false`, 자료 원문 비교 창구가 생기면 연결), `chat_messages.ai_call_log_id`(`LlmClient`가 로그 id를 돌려주지 않아 비어 있음), T-04·T-05(P1).
-
+- **T-05 (2026-11-10 추가)**: 두 노트를 id 순으로 행 잠금한 뒤 검사한다(같은 순간 가르치기 턴이 같은 노트를 고쳐도 하나가 기다린다). 같은 노트·남의 제자 노트·다른 주차·이미 `ACTIVE`가 아닌 노트는 모두 `TEACHING_NOTE_MERGE_INVALID`(409), 남의 제자는 `NOT_FOUND`. 서버는 제안을 저장하지 않으므로 유사도를 다시 따지지 않고 학생의 선택을 따른다.
+- 아직 하지 않은 것: `pasteWarning`(항상 `false`, 자료 원문 비교 창구가 생기면 연결), `chat_messages.ai_call_log_id`(`LlmClient`가 로그 id를 돌려주지 않아 비어 있음), **T-04**(팀 결정 2026-11-09: 편의 기능이라 시연에 영향이 없어 뺐다).
 ### 11-2. 문제 은행 파이프라인 (J-02)
 
 | 단계 | 하는 일 | 탈락 조건 |
