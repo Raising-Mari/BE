@@ -34,6 +34,7 @@ public enum ErrorCode {
 	DISCIPLE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 과목에는 이미 제자가 있습니다."),
 	DISCIPLE_NOT_FOUND(HttpStatus.NOT_FOUND, "이 과목에 제자가 없습니다. 먼저 제자를 만들어 주세요."),
 	TEACHING_CONCURRENT_TURN(HttpStatus.CONFLICT, "같은 대화에 메시지가 동시에 들어왔습니다. 잠시 후 다시 보내 주세요."),
+	TEACHING_NOTE_MERGE_INVALID(HttpStatus.CONFLICT, "같은 제자·같은 주차의 현재 노트끼리만 합칠 수 있습니다."),
 
 	MATERIAL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "자료 사용 권한과 개인정보 제외에 동의해야 올릴 수 있습니다."),
 	MATERIAL_INVALID_FILE(HttpStatus.BAD_REQUEST, "PDF 파일만 올릴 수 있습니다."),
