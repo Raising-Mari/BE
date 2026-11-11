@@ -381,8 +381,8 @@
 - **R-02**: 빈 문자열 메모는 `null`로 저장한다. 다시 저장하면 모든 칸을 덮어쓴다(보내지 않은 메모는 지워진다).
 - **R-03**: 같은 답·같은 종류는 서버가 먼저 막고(`REPORT_DUPLICATE`) DB UNIQUE가 한 번 더 막는다. `QUESTION` 신고는 이미 `RETIRED`인 문항을 되살리지 않는다. 처리(X-08)는 WP12.
 - **R-11**: 배틀 행을 잠그고 기록한다. 시각은 마이크로초로 잘라 저장해(DB `DATETIME(6)`) 두 번째 응답과 같은 값이 나온다.
-- **만들지 않은 것**: R-06~R-08(노트 교환 리뷰), R-09, R-10(P1·P2).
-
+- **R-06~R-08 (2026-11-09 추가)**: 끝난 `RANKED` 배틀의 참가자만(아니면 `NOT_FOUND`, 끝나지 않았으면 `BATTLE_NOT_FINISHED`). R-06·R-07은 두 사람 모두 `notesPublic=true`일 때만 되고(`REVIEW_NOTES_NOT_PUBLIC`), R-08은 동의가 없어도 부를 수 있다(그때는 `written`·`received` 모두 `null`). 노트는 상대가 준비 완료를 누른 순간의 스냅샷(`note_ids_json`) 순서대로 준다. R-07의 `evidenceNoteEntryId`는 그 스냅샷 안의 노트만 받는다(`INVALID_INPUT`). 배틀당 한 번(`REVIEW_ALREADY_SUBMITTED`). 배틀은 `BattleReviewService.loadNoteExchange`로만 읽는다.
+- **만들지 않은 것**: R-09(P2), **R-10**(팀 결정 2026-11-09: 편의 기능이라 시연에 영향이 없어 뺐다).
 ---
 
 ## 8. 랭킹 (`domain/ranking`)
