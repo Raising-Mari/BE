@@ -1,0 +1,6 @@
+package com.aidisciple.ai;
+
+public enum AiPurpose {
+	TEACH_TURN, CONCEPT_EXTRACT, QUESTION_GENERATE, LEAK_TEST,
+	EXTERNAL_JUDGE, BATTLE_SOLVE, GRADE_BATCH
+}

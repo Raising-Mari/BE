@@ -15,7 +15,7 @@
 | 시각 | ISO-8601 UTC 문자열 (`2026-11-02T01:23:45.678Z`) |
 | ID | 숫자(Long). **모든 ID 경로는 소유·참가 여부를 서버가 검사한다** (남의 제자·배틀·노트 접근 방지) |
 | 성공 응답 | DTO를 감싸지 않고 그대로. 생성은 `201`, 비동기 접수는 `202`, 본문 없음은 `204` |
-| 오류 응답 | `{ "code": "BATTLE_ROOM_FULL", "message": "...", "violations": [{"field","reason"}] }` |
+| 오류 응답 | `{ "code": "BATTLE_ROOM_FULL", "message": "...", "violations": [{"field","reason"}], "details": {…} }` — `details`는 FE가 오류 뒤에 이어서 쓸 값이 있을 때만 있다(예: `COURSE_DUPLICATE`의 `existingCourseId`). 없으면 필드 자체가 없다 |
 | 페이지네이션 | 요청 `page`(0부터)·`size`(기본 20, 최대 50). 응답 `{ "items": [], "page": 0, "size": 20, "totalElements": 0, "hasNext": false }` |
 | 우선순위 | **P0** 핵심 루프(없으면 시연 불가) · **P1** 제안서가 약속한 범위(11/12 목표) · **P2** 여유 있을 때 |
 | WP | [backend-plan.md](backend-plan.md)의 작업 묶음 번호 (표의 "6"은 6-A·6-B를 합친 것) |
@@ -60,6 +60,19 @@
 
 **A-06** 응답 `{ "id", "nickname", "emailMasked": "a***@mju.ac.kr", "school": {"id","name"}, "department": {"id","name","collegeName"}, "role" }`
 
+**A-07** 요청 `{ "nickname"?, "departmentId"? }` — 바꿀 값만 보낸다. 둘 다 없으면 `INVALID_INPUT`. 닉네임 규칙·오류 코드는 A-03과 같고, 응답은 A-06과 같다.
+
+**구현 메모 (2026-11-06, WP3)** — 문서가 정하지 않았던 부분을 이렇게 정했다.
+- 가입 토큰(10분)은 Google이 확인한 `sub`·이메일·학교를 담는다. 가입 요청은 이 값만 쓴다. "1회용"은 토큰에 상태를 두지 않고 `users.google_sub` UNIQUE와 서비스의 중복 검사로 지킨다: 이미 가입한 계정의 가입 토큰은 `AUTH_SIGNUP_TOKEN_INVALID`.
+- 학교는 ID 토큰의 `hd`로 `schools.email_domain`에서 찾는다. `hd`가 없거나(개인 계정) 등록되지 않은 도메인이면 `AUTH_EMAIL_DOMAIN_NOT_ALLOWED`. 이메일 인증이 안 된 계정은 `AUTH_GOOGLE_TOKEN_INVALID`.
+- 가입 검사 순서: 가입 토큰 → 약관 → 닉네임 형식 → 학과(가입 토큰의 학교 소속) → 이미 가입한 토큰 → 닉네임 중복. 학과가 없거나 다른 학교 것이면 `INVALID_INPUT`.
+- 닉네임은 앞뒤 공백을 자르고 대소문자 구분 없이 유일하다. `admin`·`관리자`·`운영자`·`운영진`이 들어간 이름과 `system`·`시스템` 단독은 막는다. 욕설 사전은 아직 없다.
+- A-04는 형식이 틀린 닉네임도 오류 없이 `{ "available": false }`로 답한다(입력하는 동안 부르는 API라서).
+- 관리자는 `ADMIN_EMAILS`(쉼표 구분)에 적힌 메일로 가입할 때 `ADMIN`이 된다. 이미 가입한 계정의 역할은 바꾸지 않는다. 역할은 액세스 토큰에 들어가므로 바뀌어도 토큰이 만료(7일)될 때까지 이전 역할로 통한다.
+- A-06은 토큰이 유효해도 사용자가 없거나 탈퇴했으면 `UNAUTHORIZED`다.
+- A-09(`dev-login`)의 응답은 A-01과 같은 모양이다: 가입한 계정이면 액세스 토큰, 아니면 가입 토큰(`registered=false`)이라 Google 없이 가입 화면까지 시험할 수 있다. 개발용 계정(`dev1@mju.ac.kr`, `dev2@mju.ac.kr`, `admin@mju.ac.kr`)은 `local` 프로필에서 자동으로 만들어진다.
+- A-08(탈퇴, P2)은 만들지 않았다.
+
 ---
 
 ## 2. 과목·단원·제자 (`domain/course`, `domain/teaching`)
@@ -87,6 +100,18 @@
 
 **D-01** `{ "name", "characterKey"? }` → `201`. 이미 있으면 `409 DISCIPLE_ALREADY_EXISTS`.
 
+**구현 메모 (2026-11-06, WP4)** — 문서가 정하지 않았던 부분을 이렇게 정했다.
+- **과목은 학교 안에서만 보인다.** 다른 학교의 과목 id는 없는 과목과 똑같이 `404 NOT_FOUND`다(주차·제자 API도 같다). 검색은 내 학교의 `ACTIVE` 과목만 준다(보관된 과목은 검색에서만 빠진다).
+- C-01: `keyword`는 과목명의 일부이고 공백·대소문자를 무시한다(`자료 구조`로 `자료구조`를 찾는다). `%`·`_`는 글자 그대로 찾는다. 정렬은 학기 최신순 → 이름순이다. 크기는 기본 20, 최대 50(규약).
+- C-02: 학기는 `2026-2`처럼 **연도 4자리-숫자 1자리**(1~9)만 받는다(`INVALID_INPUT`). 형식이 제각각이면 같은 과목이 학기만 다르게 적혀 중복 판정이 무너진다. 학과는 내 학교의 학과여야 한다. 중복(`COURSE_DUPLICATE`)이면 오류 본문에 `details.existingCourseId`가 있다. 중복 판정은 과목명의 **공백을 모두 없애고 소문자로 만든 값**(문장부호는 유지: `C++`과 `C`는 다른 과목)과 학기로 한다. 만든 과목은 자동으로 수강 등록되지 않는다(제자를 만들어야 한다).
+- C-03: 최근에 만든 제자의 과목이 먼저 온다. C-04의 `hasMyDisciple`은 내 제자가 있는지다.
+- C-05: 숫자를 값으로 비교한 순서다(`2주차`가 `10주차`보다 앞). **`materialCount`·`myNoteCount`·`battleReady`는 자료(WP5)·노트(WP6)·문제 은행(WP7)이 들어오기 전까지 항상 `0`·`0`·`false`다.** 그 기능이 생기면 각 도메인 서비스를 불러 채운다(FE가 이 필드를 쓰는 화면은 그때까지 빈 값으로 보인다).
+- C-06: 이름의 앞뒤 공백을 자르고, 공백만 다른 이름(`3주차`/`3 주차`)은 중복이다. 중복이면 `details.existingUnitId`가 있다. 주차를 만드는 데 제자는 필요 없다.
+- D-01: 이름은 1~30자이고, `characterKey`가 비었거나 공백뿐이면 없는 것으로 저장한다. 같은 학생이 같은 과목에 두 번 만들 수 없다(DB UNIQUE). D-02는 제자가 없으면 `404 DISCIPLE_NOT_FOUND`다.
+- 동시에 같은 과목·주차·제자를 만들어 DB UNIQUE에 걸린 경우에도 같은 중복 코드로 답하지만, 이때는 `details`가 없다.
+- C-07(주차 이름 수정)·D-03(제자 수정)은 P2라 만들지 않았다.
+
+
 ---
 
 ## 3. 강의자료 (`domain/material`)
@@ -98,6 +123,7 @@
 | M-03 | `GET /api/materials/{id}` | 로그인(올린 사람) | 처리 상태 + 연결된 주차 조회 (폴링) | P0 | 5 |
 | M-04 | `GET /api/courses/{courseId}/materials` | 로그인 | 내가 올린 자료 목록 (메타데이터 + 연결된 주차 id) | P0 | 5 |
 | M-05 | `DELETE /api/materials/{id}` | 로그인(올린 사람) | 자료 삭제 → 근거로 쓰인 문항 `RETIRED` | P1 | 5 |
+> **M-05는 API로 만들지 않는다**(팀 결정 2026-11-09). 자료 삭제는 [operations-sql.md](operations-sql.md)의 SQL 절차로 한다.
 | M-06 | `PUT /api/materials/{id}/units` | 로그인(올린 사람) | 이 자료가 출처가 될 주차를 지정(전체 교체) `{ "unitIds": [3, 4] }` | P0 | 5 |
 
 **자료는 과목에 올리고, 주차는 나중에 고른다**. 한 자료를 여러 주차에 연결할 수 있고, **자료 전체**가 연결된 모든 주차의 출처가 된다(쪽·문장 범위 지정 없음). 주차에 연결되지 않은 자료는 저장만 되고 문항을 만들지 않는다.
@@ -118,6 +144,19 @@
 - 모든 주차가 이 자료의 과목에 속해야 한다(`UNIT_NOT_IN_COURSE`). 자료를 올린 사람만 바꿀 수 있다. 자료가 `PROCESSING`이어도 연결할 수 있다.
 - **새로 연결된 주차**: 자료가 이미 `DONE`이면 그 주차의 문항 생성 작업(J-02, `UNIT_MAPPED`)을 건다. `PROCESSING`이면 처리가 끝날 때 건다.
 - **연결이 풀린 주차**: 그 주차에서 이 자료의 문장을 근거로 쓰던 문항을 `RETIRED`로 바꾼다 (M-05 자료 삭제와 같은 규칙).
+
+**구현 메모 (2026-11-06, WP5)** — 문서가 정하지 않았던 부분을 이렇게 정했다.
+- **접수와 처리는 분리돼 있다.** M-01·M-02는 검사 → 자료 행(`PENDING`) 저장 → 처리 작업을 큐에 넣고 `202`로 답한다. 처리(J-01)는 별도 스레드에서 `PENDING → PROCESSING → DONE/FAILED`로 진행되고 FE는 M-03으로 폴링한다.
+- 접수 순서: 과목이 내 학교 것인가 → 동의 → 제목(1~200자, `INVALID_INPUT`) → 사용량 제한(사용자당 1시간 10회, `RATE_LIMITED`) → 파일 검사. 동의를 보내지 않은 것(`consentAgreed` 생략)도 동의하지 않은 것으로 본다.
+- **처리 큐가 가득 차면** 접수를 취소하고 `429 RATE_LIMITED`("잠시 후 다시 올려 주세요")를 준다. 취소된 자료는 목록에 보이지 않는다.
+- M-01 파일 검사: 확장자 `.pdf`, MIME `application/pdf`(`application/x-pdf`도 허용), 파일 앞 1024바이트 안의 `%PDF-` 머리말을 모두 확인한다. 20MB 초과는 `413 MATERIAL_TOO_LARGE`(서버가 받기 전에 걸려도 같은 코드). 빈 파일은 `MATERIAL_INVALID_FILE`.
+- 처리 결과 `FAILED`의 이유: `NO_TEXT`(뽑은 글이 공백 제외 30자 미만 — 스캔본), `TOO_LARGE`(500쪽 초과 또는 뽑은 글이 50만 자 초과), `PARSE_ERROR`(암호가 걸렸거나 깨진 파일, 예기치 않은 오류), `SERVER_RESTART`. 붙여넣은 글(M-02)도 30자 미만이면 `NO_TEXT`다. 기준값은 `app.material.*`.
+- **원본 파일은 저장하지 않고 메모리로만 넘긴다.** 그래서 서버가 재시작되면 처리 중이던 자료는 다시 처리할 수 없다. 시작할 때 `PENDING`·`PROCESSING`인 자료를 모두 `FAILED/SERVER_RESTART`로 닫고(J-06), 사용자가 다시 올린다.
+- 문장: PDF는 쪽마다 따로 나눠 쪽수(`page_no`)를 붙이고, 붙여넣은 글은 쪽수가 없다. `seq`는 자료 전체에서 1부터 이어진다. **줄바꿈은 항상 문장 경계**라서 슬라이드 자료에는 맞지만, 한 문단이 여러 줄로 접힌 문서 PDF는 문장이 줄 단위로 잘릴 수 있다. 정규화본·해시는 가르치기 검증과 같은 `global/text`의 규칙이다.
+- M-03·M-04·M-06은 자료를 **올린 사람만** 쓴다. 남의 자료는 없는 자료처럼 `404 NOT_FOUND`다. M-04는 이 과목에 내가 올린 자료만 최근 순으로 준다.
+- M-06: 요청의 `unitIds`는 중복을 합치고 오름차순으로 응답한다. 이 과목의 주차가 아니거나 없는 주차가 하나라도 있으면 아무것도 바꾸지 않고 `400 UNIT_NOT_IN_COURSE`다.
+- **문제 은행과의 연결(WP7에서 이어받을 것)**: 이 도메인은 문제 은행을 모른다. 처리가 끝나면 `MaterialProcessedEvent`(그 시점에 이미 연결된 주차 포함), 연결이 바뀌면 `MaterialUnitsChangedEvent`(추가·해제된 주차, 자료가 `DONE`인지)를 낸다. 문항 생성 작업을 걸고 연결이 풀린 주차의 문항을 `RETIRED`로 바꾸는 것은 문제 은행이 이 이벤트를 받아 한다. **지금은 받는 쪽이 없으므로 자료를 주차에 연결해도 문항은 만들어지지 않는다.**
+- **M-05(자료 삭제, P1)는 만들지 않았다.** 핵심이 "근거로 쓰인 문항을 `RETIRED`로" 바꾸는 일이라 문제 은행(WP7)과 함께 만든다. 그때까지 업로드한 자료를 지울 수단이 없다.
 
 문장 내용은 어떤 학생용 API로도 내려가지 않는다. (복기 화면의 근거 문장은 R-01이 **끝난 배틀의 문항**에 한해서, 학생이 정답 보기(R-11)를 누른 뒤에만 준다.)
 
@@ -267,6 +306,18 @@
 
 배틀 상태 전이: `WAITING → LOBBY → RUNNING → FINISHED`, `WAITING/LOBBY → CANCELED/EXPIRED`, `RUNNING → ERROR`, **`ERROR → RUNNING`**(B-09로 풀이를 다시 시도할 때), **`ERROR → CANCELED`**(B-05로 참가자가 포기할 때). 연습 배틀은 생성과 동시에 `RUNNING`에서 시작한다. 허용되지 않은 전이는 `409 CONFLICT`.
 
+**구현 메모 (2026-11-09, WP8)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: B-01~B-06, B-08, B-09, B-10, J-03의 풀이 단계, J-04, J-06(배틀). B-07(결과)·채점·`FINISHED` 전환은 WP9에서, Elo 는 WP10에서 만든다.
+- **채점과의 경계**: 제자 풀이가 끝나면 답을 `battle_answers`에 `verdict=PENDING`(채점 전, 새 값)·0점으로 저장한다. 두 사람(연습은 한 사람)이 모두 `SOLVED`가 되면 `BattleSolvedEvent`를 내고, WP9가 `@TransactionalEventListener(AFTER_COMMIT)`으로 받아 채점한 뒤 `Battle.finish`로 `FINISHED`를 만든다. **(WP9에서 채점이 연결돼 지금은 `FINISHED`까지 간다 — 아래 11-4 구현 메모.)** 서버가 재시작될 때 모두 풀었는데 채점 전인 `RUNNING` 배틀은 이벤트를 다시 낸다. B-03 `summary.eloDelta`는 WP10 에서 채워졌다(아래 WP10 메모).
+- **잠금 순서**: 같은 사람의 요청은 사용자 행(`users`), 같은 배틀의 요청은 배틀 행을 `FOR UPDATE`로 잠가 한 줄로 세운다. 항상 사용자 → 배틀 순서라 교착이 없다. 풀이 작업 접수와 `BATTLE_NOT_ENOUGH_QUESTIONS` 오류는 트랜잭션이 커밋된 **뒤에** 처리한다(곧바로 시작되는 풀이 스레드가 커밋 전 상태를 못 보게, 오류로 롤백돼 두 사람의 준비 해제가 사라지지 않게). **다른 참가자의 상태로 판단하는 읽기(둘 다 풀었는가)는 참가자도 잠금 읽기로 한다** — 일반 읽기는 잠금을 기다리기 전에 고정된 스냅샷을 볼 수 있다(REPEATABLE READ, 2026-11-09 수정).
+- **B-01·B-02**: "진행 중인 `RANKED` 방은 하나"(`BATTLE_ALREADY_ACTIVE`)를 입장자에게도 적용한다. 입장 시간이 지난 방은 만료 작업(J-04)이 돌기 전이어도 진행 중으로 치지 않는다. `BATTLE_NOTES_REQUIRED`의 `details`(`courseId`, `unit`)는 B-01·B-04에서도 준다. 다른 학교의 방은 `BATTLE_ROOM_NOT_FOUND`가 아니라 `NOT_FOUND`로 답한다(과목 가시성 검사와 같은 규칙). 이미 들어온 입장자가 다시 호출하면 같은 응답을 준다(새로고침).
+- **B-03·B-06**: 입장 시간이 지난 `WAITING`/`LOBBY`는 `EXPIRED`로 보여 준다(B-02와 같은 기준). 끝난 배틀의 `summary`는 참가자의 `total_score`·`result`를 쓴다.
+- **B-04**: `LOBBY`에서만 누를 수 있다(상대가 오기 전 `WAITING`이면 `409 CONFLICT`). 이미 준비한 사람이 다시 눌러도 `204`이고(시작된 뒤에도), `notesPublic`은 **처음 준비할 때만** 반영한다(그 뒤는 B-08). 문항이 모자라 못 시작하면 `BATTLE_NOT_ENOUGH_QUESTIONS`와 함께 재고 보충 작업(`LOW_STOCK`)을 건다.
+- **B-05**: 이미 `CANCELED`인 방을 다시 취소해도 `204`(두 번 누름). `EXPIRED`·`RUNNING`·`FINISHED`는 `409`.
+- **B-09**: `202`. 실패한 참가자만 다시 접수하고 이미 푼 참가자의 답은 그대로 둔다.
+- **B-10**: `battleAnswerIds`를 생략(null)해야 "맞히지 못한 답 전부"이고, 빈 목록은 "아무것도 고르지 않음"이라 `PRACTICE_NOTHING_TO_REVIEW`다. 생략했을 때 `ZEROED_INJECTION` 답은 대상에서 뺀다. "이미 진행 중인 연습"은 `RUNNING`과 `ERROR`를 센다. 사용량 제한은 B-01과 같은 이름(`battle.create`)으로 함께 센다.
+- **J-03**: 참가자마다 AI는 한 번(전 문항 일괄). 실패하면 최대 3회(처음 1 + 재시도 2) 시도하고 대기는 2초·4초로 늘린다. 끝내 실패하면 배틀이 `ERROR`(이유는 오류 코드만)다. 노트가 0개면(연습 배틀만 가능) AI를 부르지 않고 모두 `모름`으로 저장한다. 작업 큐가 가득 차면 `ERROR`(`QUEUE_FULL`)로 닫고 B-09로 재시도한다. 설정은 `app.battle.*`.
+- **만들지 않은 것**: Elo, 정답 보기(R-11). `answers_revealed_at`은 B-10이 읽기만 한다. (B-07·채점은 WP9에서, R-11은 WP11에서 만들었다.)
 ---
 
 ## 7. 복기·리뷰·신고 (`domain/review`)
@@ -323,6 +374,16 @@
 
 **R-07** `{ "goodPoints", "suggestions", "evidenceNoteEntryId"? }` → `201`. 배틀당 1회(`REVIEW_ALREADY_SUBMITTED`). 두 사람이 모두 공개 동의한 배틀에서, 상대의 공개된 노트만 대상으로 쓸 수 있다(아니면 `REVIEW_NOTES_NOT_PUBLIC`).
 
+
+**구현 메모 (2026-11-09, WP11)** — P0(R-01~R-03, R-11)를 만들면서 정한 것.
+- **만든 것**: R-01, R-02, R-03, R-11. 배틀은 `BattleReviewService`(복기가 배틀을 읽고 쓰는 유일한 창구)로만 읽고 쓴다. 문항은 `QuestionLookupService.reviewQuestions`·`QuestionBankService.markUnderReview`, 근거 자료 제목은 `MaterialSourceService.materialTitlesOf`로 읽는다.
+- **검사 순서**: B-07과 같다. 없는 배틀·남의 배틀·남의 답은 `NOT_FOUND` → 연습 배틀은 `INVALID_INPUT` → 끝나지 않았으면 `BATTLE_NOT_FINISHED`. R-02·R-03도 **끝난 `RANKED` 배틀의 내 답**에만 쓸 수 있다.
+- **R-01**: 항목은 내 답 전부(seq 순). `usedNotes`는 그 답이 인용한 노트(`cited_note_ids_json`)이고, 준비 순간 스냅샷의 노트라 그 뒤에 고쳐도 그때 내용이 나온다. `causeSuggestion`은 `CORRECT`면 `null`. `injectionFlag`는 답의 플래그가 켜졌거나 `ZEROED_INJECTION`일 때 `true`. `evidence.materialTitle`은 근거 문장 중 id가 가장 작은 문장의 자료 제목이고, 근거 연결이 없으면 `null`. 정답 보기 뒤에도 근거 문장이 없는 문항은 `evidence`를 뺀다.
+- **R-02**: 빈 문자열 메모는 `null`로 저장한다. 다시 저장하면 모든 칸을 덮어쓴다(보내지 않은 메모는 지워진다).
+- **R-03**: 같은 답·같은 종류는 서버가 먼저 막고(`REPORT_DUPLICATE`) DB UNIQUE가 한 번 더 막는다. `QUESTION` 신고는 이미 `RETIRED`인 문항을 되살리지 않는다. 처리(X-08)는 WP12.
+- **R-11**: 배틀 행을 잠그고 기록한다. 시각은 마이크로초로 잘라 저장해(DB `DATETIME(6)`) 두 번째 응답과 같은 값이 나온다.
+- **R-06~R-08 (2026-11-09 추가)**: 끝난 `RANKED` 배틀의 참가자만(아니면 `NOT_FOUND`, 끝나지 않았으면 `BATTLE_NOT_FINISHED`). R-06·R-07은 두 사람 모두 `notesPublic=true`일 때만 되고(`REVIEW_NOTES_NOT_PUBLIC`), R-08은 동의가 없어도 부를 수 있다(그때는 `written`·`received` 모두 `null`). 노트는 상대가 준비 완료를 누른 순간의 스냅샷(`note_ids_json`) 순서대로 준다. R-07의 `evidenceNoteEntryId`는 그 스냅샷 안의 노트만 받는다(`INVALID_INPUT`). 배틀당 한 번(`REVIEW_ALREADY_SUBMITTED`). 배틀은 `BattleReviewService.loadNoteExchange`로만 읽는다.
+- **만들지 않은 것**: R-09(P2), **R-10**(팀 결정 2026-11-09: 편의 기능이라 시연에 영향이 없어 뺐다).
 ---
 
 ## 8. 랭킹 (`domain/ranking`)
@@ -368,6 +429,20 @@
 | X-11 | `GET /api/admin/stats/usage` | 시험 사용 지표 (재방문, 연습 배틀 후 정답 비율, 오진단 건수 등) | P2 |
 | X-12 | `GET /api/admin/exports/battle-answers.csv` | 채점 일치도 비교용 내보내기 | P2 |
 
+
+**구현 메모 (2026-11-09, WP12)** — 시험 사용에 꼭 필요한 것부터 만들었다.
+- **만든 것**: X-01~X-12 전부.
+- - **X-01**: 본문을 생략하면 목표 수는 `app.question.target-count`(1~30만 받는다). 같은 주차에 대기·실행 중인 작업이 있으면 `409 CONFLICT`. 접수가 커밋된 **뒤에** 실행기로 넘긴다(자료 처리 완료 때와 같은 경로).
+- **X-02**: `rejectedByStage`는 그 작업의 검증 기록 중 탈락(`passed=false`)을 단계별로 센 값이다.
+- **X-03·X-04**: 최신순. `usedCount`는 배틀(연습 포함)에 나온 횟수, `correctRate`는 채점된 답(PENDING 제외) 중 `CORRECT` 비율이고 답이 없으면 `null`. 배틀 쪽 숫자는 `BattleQuestionStatsService`로만 읽는다. X-04의 검증 기록은 그 문항이 통과한 단계만 나온다(탈락 후보에는 문항 id가 없다).
+- **X-05**: `UNJUDGED → UNDER_REVIEW`와 `→ UNJUDGED`는 `409`. 같은 상태로 바꾸면 검수자·시각만 새로 남는다. 응답은 X-04와 같은 상세다.
+- **X-08**: 처리 상태로 `OPEN`은 받지 않는다(`400`). `questionAction`은 생략하면 `NONE`이고, `RESTORE`는 문항을 `VERIFIED`로 되돌린다(관리자가 확인했으므로). 다시 처리하면 마지막 처리로 덮어쓴다.
+- **X-10**: 날짜는 **한국 시간** 기준으로 묶고(`days` 1~31, 기본 7), 호출이 없는 날도 0으로 나온다. Gemini 무료 한도는 미국 태평양 시간 자정, 즉 **한국 시간 오후 4~5시**에 초기화되니 볼 때 감안한다.
+- **X-06**: 사람이 만든 문항이라 `source=MANUAL`, 바로 `VERIFIED`로 저장한다(검수자·시각은 만든 관리자). 누출 시험은 거치지 않아 `leakTestPassed=false`이고, 근거는 강의자료 문장과 연결하지 않고 글(`evidenceText`)로만 남는다(R-01의 `evidence.materialTitle`은 `null`). `ANSWER_LIST`는 `answers`, `KEY_ELEMENTS`는 `keyElements`(+`requiredElements`, 생략하면 요소 전부)가 없으면 `400`.
+- **X-09·X-11·X-12**: 여러 도메인 테이블을 한꺼번에 세는 **읽기 전용 집계**라, 도메인 창구 대신 `domain/admin`에서 SQL로 직접 센다(쓰기는 하지 않는다). 개인을 알아볼 수 있는 값은 내보내지 않는다.
+- **X-09**: **랭킹 배틀**에서 채점된 답이 `minAnswers`(기본 5)개 이상인 문항만. 정답률 ≤ 0.1은 `tooHard`, ≥ 0.9는 `tooEasy`.
+- **X-11**: `days` 1~90(기본 7), 한국 시간. 활동 = 학생 가르치기 메시지 또는 배틀 참가. `returningStudents`는 서로 다른 이틀 이상 활동한 학생, `practiceRetest.improvedFromWrong`은 원래 맞히지 못한 답이 연습에서 정답이 된 수, `reviews.causeDisagreed`는 학생이 고른 원인이 서버 제안과 다른 복기(오진단 후보)다.
+- **X-12**: 끝난 배틀의 답마다 한 줄(`days` 1~365, 기본 30, `courseId` 선택). 학생 id·이름·메일은 넣지 않는다. 엑셀용 UTF-8 BOM을 붙이고, `=`·`+`·`-`·`@`로 시작하는 글 칸은 앞에 `'`를 붙여 수식으로 실행되지 않게 한다(CSV 인젝션).
 ---
 
 ## 10. 내부 작업 (API 아님)
@@ -417,6 +492,25 @@
 
 제자의 **답변(`reply`) 속 누출**(가르치지 않은 지식)은 코드로 완전히 막을 수 없다. 프롬프트로 최소화하고 문항 쪽 누출 시험(11-2의 3단계)이 안전망이다.
 
+**구현 메모 (2026-11-06, WP6-A)** — 위 규칙을 코드로 옮기면서 문서가 정하지 않았던 부분을 이렇게 정했다.
+- 변경은 AI가 준 순서대로 처리하며 앞 변경의 결과가 뒤 변경에 반영된다. 그래서 같은 턴에 `REMOVE` 뒤의 `ADD`는 비워진 자리를 쓰고, 같은 노트를 두 번 고치거나 지우면 두 번째는 `TARGET_NOT_FOUND`다.
+- 같은 턴에 거의 같은 `ADD`(유사도 ≥ 0.9)를 두 번 내면 뒤의 것은 탈락 기록 없이 버린다. 이번 턴에 만든 노트는 id가 아직 없어 합치기 제안도 만들지 않는다.
+- `mergeSuggestions` 후보는 0.75 ≤ 유사도 < 0.9인 옛 노트 전부이고, 유사도 높은 순이다. 개수 제한은 두지 않았다.
+- `ADD`의 탈락 사유(`failed_checks_json`)는 근거·겹침·부정·길이 검사에서 걸린 것을 모두 담는다. 상한(`NOTE_LIMIT_REACHED`)은 이 검사를 모두 통과한 뒤에만 판단하므로 단독으로 남는다.
+- 11-1의 4단계(형식 검사)는 두 겹이다. JSON 자체가 깨지면 AI 어댑터가 한 번 다시 부르고, JSON은 맞지만 `reply`가 비었거나 `op`가 없으면 엔진이 한 번 더 부른다. 둘 다 실패하면 `AI_BAD_RESPONSE`다.
+- 프롬프트에 넣는 노트는 `app.teaching.prompt-notes-max-chars`(기본 6000자)까지 최신 노트부터 채운다. 유사도·상한 판단은 이 한도와 무관하게 전체 `ACTIVE` 노트로 한다.
+
+
+**구현 메모 (2026-11-08, WP6-B)** — 저장·조회를 만들면서 정한 것.
+- T-01은 `TeachingService`(트랜잭션 없음)가 `TeachingTurnStore.prepare`(읽기 트랜잭션) → `TeachingTurnEngine.run`(트랜잭션 밖, AI) → `TeachingTurnStore.save`(쓰기 트랜잭션) 순서로 부른다. AI가 실패하면 아무것도 저장하지 않는다.
+- 같은 `clientMessageId`를 다시 받으면 AI를 부르지 않고 저장된 결과를 준다. 이때 그 턴에 새로 생긴 노트(`ADD`·`UPDATE`)와 `rejectedCount`는 다시 만들지만, 병합·삭제·합치기 제안은 따로 저장하지 않아서 빈 목록이다.
+- 학생 메시지·제자 메시지 저장이 `UNIQUE` 제약에 걸리면(동시 전송) `TEACHING_CONCURRENT_TURN`(409)이다.
+- `UPDATE`로 생긴 새 노트의 `evidence`는 그 턴의 학생 메시지 전체다(검증기가 `UPDATE`에는 근거 구절을 주지 않는다).
+- `note_entries.verification_detail_json`은 `ADD`면 `{"op":"ADD","passed":true,"mergedCount":n}`, `UPDATE`면 `{"skipped":true,"op":"UPDATE"}`다. 검증기가 겹침 비율 같은 수치를 돌려주지 않아 erd 4절 예시의 수치는 아직 남기지 않는다.
+- 탈락 변경의 `target_entry_id`는 `TARGET_NOT_FOUND`면 비운다(없는 노트 id는 외래키에 걸린다).
+- T-02는 최신 메시지가 먼저 오는 페이지다(0페이지 = 가장 최근).
+- **T-05 (2026-11-10 추가)**: 두 노트를 id 순으로 행 잠금한 뒤 검사한다(같은 순간 가르치기 턴이 같은 노트를 고쳐도 하나가 기다린다). 같은 노트·남의 제자 노트·다른 주차·이미 `ACTIVE`가 아닌 노트는 모두 `TEACHING_NOTE_MERGE_INVALID`(409), 남의 제자는 `NOT_FOUND`. 서버는 제안을 저장하지 않으므로 유사도를 다시 따지지 않고 학생의 선택을 따른다.
+- 아직 하지 않은 것: `pasteWarning`(항상 `false`, 자료 원문 비교 창구가 생기면 연결), `chat_messages.ai_call_log_id`(`LlmClient`가 로그 id를 돌려주지 않아 비어 있음), **T-04**(팀 결정 2026-11-09: 편의 기능이라 시연에 영향이 없어 뺐다).
 ### 11-2. 문제 은행 파이프라인 (J-02)
 
 | 단계 | 하는 일 | 탈락 조건 |
@@ -431,6 +525,20 @@
 - 통과하면 `questions` + `question_evidences` 저장. 4단계까지 통과 → `VERIFIED`, **4단계를 아직 못 쓰는 동안**(Jev 보류)에는 1~3단계 통과 문항을 `UNJUDGED`로 저장한다. 배틀은 `app.question.allow-unjudged` 설정이 `true`일 때만 `UNJUDGED`를 쓴다(개발·시연은 `true`). 시연 직전에 `false`로 바꿔 검수한 `VERIFIED` 문항만 쓰게 할 수도 있다. 그때를 위해 관리자가 X-03(`status=UNJUDGED`)으로 검수 대기 문항을 모아 보고 X-05로 `VERIFIED`(통과) 또는 `RETIRED`로 정리한다.
 - 단계마다 `question_validation_logs`에 `candidate_json`을 남겨 **어느 단계에서 몇 개 탈락했는지** 집계한다.
 - 목표 개수(`targetCount`)를 채울 때까지 최대 3라운드. 한 작업의 AI 호출은 (개념 수/5)+1+1회 수준이다.
+
+
+**구현 메모 (2026-11-08, WP7)** — 일정 때문에 줄인 것과 문서가 정하지 않았던 것.
+- **0단계(개념 추출)는 생략했다**(backend-plan D-7). `questions.concept_id`는 비어 있고, 문항 선택의 "개념이 겹치지 않게"는 개념이 없는 문항을 서로 다른 개념으로 본다.
+- **누출 시험(3단계)은 전용 프롬프트 `leak-test.v1`을 쓴다.** `battle-solve`에 빈 노트를 넣으면 항상 "모름"이라 거르지 못했다(`docs/question-bank-smoke.md`). 코드 채점이 `CORRECT`일 때만 버리고 `AMBIGUOUS`는 남긴다. 핵심 요소형은 노트 조건 없이 센다.
+- 프롬프트의 문장 번호는 **주차 전체 문장에 1부터 새로 붙인다**(자료마다 `seq`가 겹치므로). 응답의 번호를 `material_sentences.id`로 되돌려 `question_evidences`에 저장한다.
+- 한 라운드 = 생성(후보 `batch-size` 5개) + 누출 시험, AI 2회. 자료 문장은 `prompt-sentences-max-chars`(12,000자)씩 잘라 라운드마다 다음 구간을 넣는다. 목표(`target-count` 10)를 채우거나 `max-rounds`(3)에 닿으면 멈춘다. 설정은 `app.question.*`.
+- 중복 판정에는 `RETIRED`가 아닌 모든 문항(`UNDER_REVIEW` 포함)과 같은 작업에서 먼저 통과한 후보를 쓴다.
+- 검증 로그는 후보마다 **끝난 단계에 한 줄**이다: 탈락은 탈락한 단계(`detail_json.failures`), 통과는 `LEAK_TEST`·`passed=true`·`question_id`. 누출 시험의 답은 `detail_json.leakTestAnswer`.
+- 핵심 요소형의 `required_elements`는 요소 수의 80%(올림)다.
+- 작업은 같은 주차에 `QUEUED`·`RUNNING`이 있으면 새로 만들지 않는다. 자료 이벤트는 커밋 후(`AFTER_COMMIT`)에 받고, 그때의 DB 쓰기는 `REQUIRES_NEW`다. 연결이 풀린 주차는 그 자료의 문장을 근거로 쓴 그 주차 문항을 `RETIRED`로 바꾼다. 서버가 시작되면 `QUEUED`·`RUNNING` 작업을 다시 돌린다(J-06).
+- Q-01은 다른 학교의 주차면 `404 NOT_FOUND`다.
+- **배틀(WP8)이 쓸 창구**: `QuestionBankService.pickForBattle`(참가자 누구도 안 본 문항을 배틀 id 시드로 선택, 모자라면 빈 목록), `recordSeen`(랭킹 배틀만), `requestRestock`(B-01에서 문항이 모자랄 때 `LOW_STOCK` 작업). 노트로 문항을 푸는 `DiscipleSolver`(`battle-solve.v1`, 노트 인용이 없으면 `UNKNOWN`으로 강제)도 J-03에서 쓴다.
+- 만들지 않은 것: 4단계 외부 판정(보류, 통과 문항은 모두 `UNJUDGED`), 관리자 수동 생성(`ADMIN` 작업 API), M-05 자료 삭제와의 연결.
 
 ### 11-3. 배틀 시작과 제자 풀이 (J-03)
 
@@ -467,6 +575,19 @@
 
 정규화·n-gram·부정 표현 검출은 **하나의 유틸**(`global/text` 또는 `domain/material`의 공용 클래스)을 `teaching`·`question`·`grading`이 함께 쓴다. 단위 테스트를 가장 먼저 붙인다.
 
+**구현 메모 (2026-11-09, WP9)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: 채점 전체(위 1~8), 풀이 완료 → 채점 → `FINISHED` 연결, B-07. Elo(11-5)는 WP10이다 — 채점이 끝나 배틀이 `FINISHED`가 되면 `BattleFinishedEvent(battleId, mode)`를 내고, 랭킹은 `RANKED`일 때만 받아 반영한다. B-07 `elo`·B-03 `eloDelta`는 WP10 에서 채워졌다(아래 WP10 메모).
+- **흐름**: `BattleSolvedEvent`(커밋 뒤) → `GradingTrigger` → 비동기 `GradingRunner`. 읽기(답·문항·노트·자료), AI 판정, 쓰기가 서로 다른 짧은 트랜잭션이고, 쓰기는 `BattleSettlementService.settle` 하나가 배틀 행을 잠그고 **한 번에** 한다(답 판정·점수, 참가자 합계·건수·승패, `FINISHED`, 이벤트). 같은 이벤트가 두 번 와도 두 번째는 아무 일도 하지 않는다. 채점이 실패하면 배틀은 `RUNNING`(두 참가자 `SOLVED`)으로 남고 **서버가 다시 시작될 때** 이벤트를 다시 내 이어서 채점한다. 실행 중 실패의 자동 재시도는 없다(한계).
+- **AI 판정(`grade-batch.v1`)**: 문서의 `{ questionId, … }` 대신 **`answerId`**로 잇는다(같은 문항을 두 참가자가 풀 수 있어서). 애매한 답을 한 배틀 안에서 모아 12개씩 부른다. 호출이 끝내 실패(최대 2회 시도)하거나 응답 형식이 어긋나면 **그 답만** `UNJUDGED`(0점)로 두고 배틀은 끝낸다 — B-09는 풀이만 다시 하므로 채점을 되살릴 길이 없어서, 배틀을 멈추는 대신 관리자 확인 대상으로 남긴다. AI 호출 로그의 `user_id`는 비운다(두 사람의 답을 함께 부르므로).
+- **복붙 보정**: 비율은 글자 8-gram 이 자료에 들어 있는 비율이라 **8자 미만 답은 0**이다 — "후입선출" 같은 짧은 정답이 자료에 그대로 있어도 감점이 없다. `copy_ratio`에는 답·노트 중 큰 값을 저장하고 계수는 `CORRECT`·`PARTIAL`일 때만 1이 아니다.
+- **노트 밖 지식**: 핵심 요소형은 인용한 노트에도 있는 요소만 센다. **정답 목록형은 문서대로 노트 조건 없이 포함 여부만 본다** — 노트를 인용했지만 노트에 정답 표현이 없는 답도 `CORRECT`가 될 수 있다(알려진 한계). 문제 은행의 누출 시험(노트 없이 풀리는 문항 제거)과 `DiscipleSolver`의 노트 인용 강제가 이를 줄인다.
+- **지시문 패턴**: 기본 목록의 `채점`·`ignore`는 일반 글(예: 노트의 "채점 서버")에도 걸릴 수 있다. `app.grading.injection-patterns`로 조정한다. 사용한 노트에 있어도 0점이다.
+- **원인 제안**: "겹친다"는 3-gram 겹침(작은 쪽 기준) ≥ 0.25 **이고 겹친 조각이 3개 이상**일 때다(짧은 노트 "선입선출"이 스택 근거의 "후입선출"과 한 조각만 같아 겹친 것으로 오판되는 것을 막는다). 정답 목록형의 "핵심 요소가 모두 노트에 있다"는 정답 표현 하나가 노트에 있다는 뜻이다. `UNJUDGED`도 원인 제안 대상이고 `OTHER`는 제안하지 않는다. 노트 겹침은 준비 완료 때 스냅샷한 노트 전체로, "가르쳤는가"는 이 제자·주차의 학생 메시지 전체로 본다.
+- **합계·건수**: 합계는 답의 `final_score` 합(소수 둘째 자리)이고, 건수는 정답·부분 정답·오답·모름·지시문 의심(`flagged_count`)이다 — `UNJUDGED`는 어느 건수에도 세지 않는다. 승패는 합계를 소수 둘째 자리까지 비교하고, 연습 배틀은 승패가 없다.
+- **B-07**: 모범 답·자료 근거·`grading_detail_json`은 싣지 않는다. 상대의 답 원문은 두 사람이 모두 `notesPublic`일 때만 담는다. 상대의 판정·점수는 항상 담는다.
+- 설정은 `app.scoring.*`·`app.grading.*`.
+- **만들지 않은 것**: Elo, 복기(R-01~)와 정답 보기(R-11), 관리자의 `UNJUDGED` 검수(X-03).
+
 ### 11-5. Elo (`domain/ranking`)
 
 - **`RANKED` 배틀에만 적용한다.** 연습 배틀(`PRACTICE`)은 승패·Elo·전적을 만들지 않는다.
@@ -474,6 +595,19 @@
 - 기대 승률 `E_A = 1 / (1 + 10^((R_B − R_A)/400))`, 갱신 `R_A' = round(R_A + K·(S_A − E_A))`, `K=32`, 승 1·무 0.5·패 0, 초기 1000.
 - 두 `elo_ratings` 행을 **`user_id` 순으로** `FOR UPDATE`로 잠가 데드락을 피한다(없으면 1000으로 생성).
 - `elo_histories`와 `elo_ratings`를 **한 트랜잭션**에서 반영. `UNIQUE(battle_id,user_id)` 위반 = 이미 반영됨 → 건너뛴다(멱등).
+
+**구현 메모 (2026-11-09, WP10)** — 문서가 정하지 않았거나 WP 경계 때문에 정한 것.
+- **만든 것**: Elo 반영(위 11-5)과 K-01~K-05·K-07. K-06(학과·단과대 대항전)은 P2 라 만들지 않았다.
+- **반영 시점**: 채점 정산(`BattleSettlementService.settle`)이 배틀을 `FINISHED`로 만드는 **같은 트랜잭션**에서 반영한다. 랭킹이 `BattleFinishedEvent`를 `@TransactionalEventListener(AFTER_COMMIT)`이 아니라 평범한 `@EventListener`로 받기 때문이다 — 그래야 "`FINISHED`이면 Elo도 반영돼 있다"가 지켜져 결과 화면(B-03 `summary.eloDelta`, B-07 `elo`)이 Elo 변화 없이 뜨는 순간이 없다. 반영이 실패하면 정산이 통째로 되돌려져 배틀은 `RUNNING`(채점 전)으로 남고 서버가 다시 시작될 때 이어서 채점된다. (WP8·WP9 메모와 battle `AGENTS.md`에 "랭킹은 `AFTER_COMMIT`으로 받는다"고 쓴 것을 이 방식으로 바꿨다.)
+- **멱등과 복구**: `elo_histories`에 그 배틀이 이미 있으면 건너뛰고(`UNIQUE(battle_id, user_id)`가 마지막 보루), 두 레이팅 행은 `user_id` 순으로 `FOR UPDATE` 한다(없으면 1000점 행을 만든다). 서버가 시작될 때 **Elo가 빠진 `FINISHED` 랭킹 배틀을 끝난 순서대로** 반영한다(Elo 도입 전에 끝난 배틀 포함). 한 배틀의 실패가 다른 배틀을 막지 않는다.
+- **반올림**: 두 사람의 변화량을 각자 `round(R + K·(S − E))`로 따로 계산하므로, 변화량의 합이 드물게 ±1 어긋날 수 있다(경계값에서만).
+- **의존 방향**: 랭킹이 battle 의 `BattleRecordService`로만 결과를 읽고, 배틀 응답의 Elo 변화는 battle 이 정한 `BattleEloLookup` 인터페이스를 랭킹이 구현해 채운다(battle 은 랭킹을 모른다).
+- **K-01**: `scope=DEPARTMENT`에서 `departmentId`를 생략하면 내 학과다. 학과가 없는 사용자가 생략하면 `400`, 다른 학교의 학과는 `404`. `me`는 한 판도 안 했거나(학과 범위면) 그 학과 학생이 아니면 `null`이다. 순위는 DB 에서 페이지로 자르고 내 순위는 앞선 사람 수로 센다. 탈퇴 사용자를 거르는 것은 학과 범위뿐이다(탈퇴 기능이 아직 없다).
+- **K-03·K-04**: 끝난 랭킹 배틀만 센다. K-04 항목 `{ battleId, course, result, myScore, opponentScore, finishedAt }`는 문서에 모양이 없어 정했다(`result`는 내 쪽 승패). 한 적 없는 상대면 `404`가 아니라 빈 페이지다(그 사용자가 있는지 알려 주지 않는다). 내 전적 전체를 읽어 상대로 거른 뒤 페이지로 자른다.
+- **K-05**: 과목의 기간 안 변동 이력을 읽어 사용자별로 합친다. `days`는 기본 21, 1~365(벗어나면 `400`). 기간 안에 랭킹 배틀이 없는 사람은 나오지 않고, 동점이면 `user_id`가 작은 쪽이 앞이다. 이력 전체를 메모리에서 합치므로 학교 규모에서만 쓴다.
+- **K-07**: `courseId`는 선택이다. 상대는 그 배틀의 다른 참가자(못 찾으면 `null`).
+- 만들지 않은 것: K-06, 복기·정답 보기(R-xx)와 관리자 지표.
+
 
 ---
 
@@ -492,7 +626,7 @@
 | 배틀 | `BATTLE_ROOM_NOT_FOUND`(404) `BATTLE_ROOM_FULL`(409) `BATTLE_ROOM_EXPIRED`(410) `BATTLE_SELF_JOIN`(400) `BATTLE_ALREADY_ACTIVE`(409) `BATTLE_DISCIPLE_REQUIRED`(409) `BATTLE_QUESTION_BANK_NOT_READY`(409) `BATTLE_NOT_ENOUGH_QUESTIONS`(409) `BATTLE_NOT_FINISHED`(409) `BATTLE_NOTES_REQUIRED`(409) `PRACTICE_NOTHING_TO_REVIEW`(409) `PRACTICE_ANSWERS_REVEALED`(409) |
 | 복기·신고 | `REVIEW_NOTES_NOT_PUBLIC`(403) `REVIEW_ALREADY_SUBMITTED`(409) `REPORT_DUPLICATE`(409) |
 
-`BATTLE_NOTES_REQUIRED`는 입장(B-02)에서 오류 본문에 `unit`(`id`,`title`)과 `courseId`를 추가로 담는다.
+`BATTLE_NOTES_REQUIRED`는 입장(B-02)에서 오류 본문에 `unit`(`id`,`title`)과 `courseId`를 추가로 담는다. 오류 본문의 `details`(예: `COURSE_DUPLICATE`·`UNIT_DUPLICATE`의 기존 id)는 위 규약의 선택 필드다.
 
 **HTTP 오류가 아닌 탈락 사유**: 노트 변경 검증(11-1)에서 걸린 변경은 T-01을 실패시키지 않고 `rejected_note_changes.failed_checks_json`에 `EVIDENCE_NOT_IN_MESSAGE` `LOW_OVERLAP` `NEGATION_MISMATCH` `LENGTH_INVALID` `NOTE_LIMIT_REACHED` `TARGET_NOT_FOUND` 중 하나로 남고, T-01 응답에는 `rejectedCount`(상한이면 `noteLimitReached`)로만 나간다.
 

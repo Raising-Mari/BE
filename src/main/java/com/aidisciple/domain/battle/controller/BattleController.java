@@ -1,0 +1,133 @@
+package com.aidisciple.domain.battle.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.aidisciple.domain.battle.dto.BattleResponse;
+import com.aidisciple.domain.battle.dto.BattleResultResponse;
+import com.aidisciple.domain.battle.dto.BattleSummaryResponse;
+import com.aidisciple.domain.battle.dto.CreateBattleRequest;
+import com.aidisciple.domain.battle.dto.CreateBattleResponse;
+import com.aidisciple.domain.battle.dto.CreatePracticeRequest;
+import com.aidisciple.domain.battle.dto.CreatePracticeResponse;
+import com.aidisciple.domain.battle.dto.JoinBattleRequest;
+import com.aidisciple.domain.battle.dto.ReadyRequest;
+import com.aidisciple.domain.battle.entity.BattleMode;
+import com.aidisciple.domain.battle.dto.UpdateParticipantRequest;
+import com.aidisciple.domain.battle.entity.BattleStatus;
+import com.aidisciple.domain.battle.service.BattlePracticeService;
+import com.aidisciple.domain.battle.service.BattleQueryService;
+import com.aidisciple.domain.battle.service.BattleReadyService;
+import com.aidisciple.domain.battle.service.BattleResultService;
+import com.aidisciple.domain.battle.service.BattleRoomService;
+import com.aidisciple.global.api.PageResponse;
+import com.aidisciple.global.security.AuthUser;
+import com.aidisciple.global.security.CurrentUser;
+
+/** 6절 배틀 */
+@Tag(name = "배틀")
+@RequiredArgsConstructor
+@RestController
+@RequestMapping("/api/battles")
+public class BattleController {
+
+	private final BattleRoomService roomService;
+	private final BattleQueryService queryService;
+	private final BattleReadyService readyService;
+	private final BattlePracticeService practiceService;
+	private final BattleResultService resultService;
+
+	@Operation(summary = "B-01 방 만들기 (RANKED)")
+	@PostMapping
+	@ResponseStatus(HttpStatus.CREATED)
+	public CreateBattleResponse create(@CurrentUser AuthUser user, @Valid @RequestBody CreateBattleRequest request) {
+		return roomService.create(user.userId(), request);
+	}
+
+	@Operation(summary = "B-02 방 코드로 입장")
+	@PostMapping("/join")
+	public BattleResponse join(@CurrentUser AuthUser user, @Valid @RequestBody JoinBattleRequest request) {
+		return roomService.join(user.userId(), request);
+	}
+
+	@Operation(summary = "B-03 방·진행 상태 (2~3초 폴링)")
+	@GetMapping("/{battleId}")
+	public BattleResponse get(@CurrentUser AuthUser user, @PathVariable Long battleId) {
+		return queryService.get(user.userId(), battleId);
+	}
+
+	@Operation(summary = "B-04 준비 완료 (누른 순간 내 노트 스냅샷 저장, 멱등)")
+	@PostMapping("/{battleId}/ready")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void ready(
+		@CurrentUser AuthUser user,
+		@PathVariable Long battleId,
+		@RequestBody(required = false) ReadyRequest request
+	) {
+		readyService.ready(user.userId(), battleId, request);
+	}
+
+	@Operation(summary = "B-05 방 취소·나가기 (참가자 누구나, ERROR 에서는 포기)")
+	@PostMapping("/{battleId}/cancel")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void cancel(@CurrentUser AuthUser user, @PathVariable Long battleId) {
+		roomService.cancel(user.userId(), battleId);
+	}
+
+	@Operation(summary = "B-06 내 배틀 기록 (mode=PRACTICE 가 연습 배틀 기록)")
+	@GetMapping
+	public PageResponse<BattleSummaryResponse> myBattles(
+		@CurrentUser AuthUser user,
+		@RequestParam(required = false) BattleMode mode,
+		@RequestParam(required = false) BattleStatus status,
+		@RequestParam(required = false) Long courseId,
+		@RequestParam(required = false) Integer page,
+		@RequestParam(required = false) Integer size
+	) {
+		return queryService.mine(user.userId(), mode, status, courseId, page, size);
+	}
+
+	@Operation(summary = "B-10 연습 배틀 시작 (혼자, 랭킹 미반영, 복기에서 고른 답의 같은 문항)")
+	@PostMapping("/practice")
+	@ResponseStatus(HttpStatus.CREATED)
+	public CreatePracticeResponse startPractice(@CurrentUser AuthUser user, @Valid @RequestBody CreatePracticeRequest request) {
+		return practiceService.start(user.userId(), request);
+	}
+
+	@Operation(summary = "B-09 제자 풀이 재시도 (ERROR 배틀, 참가자 누구나)")
+	@PostMapping("/{battleId}/solve/retry")
+	@ResponseStatus(HttpStatus.ACCEPTED)
+	public void retrySolve(@CurrentUser AuthUser user, @PathVariable Long battleId) {
+		readyService.retrySolve(user.userId(), battleId);
+	}
+
+	@Operation(summary = "B-08 내 노트 공개 동의 변경")
+	@PatchMapping("/{battleId}/participants/me")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void updateMe(
+		@CurrentUser AuthUser user,
+		@PathVariable Long battleId,
+		@Valid @RequestBody UpdateParticipantRequest request
+	) {
+		roomService.changeNotesPublic(user.userId(), battleId, request.notesPublic());
+	}
+
+	@Operation(summary = "B-07 결과 (끝난 배틀만)")
+	@GetMapping("/{battleId}/result")
+	public BattleResultResponse result(@CurrentUser AuthUser user, @PathVariable Long battleId) {
+		return resultService.get(user.userId(), battleId);
+	}
+
+}

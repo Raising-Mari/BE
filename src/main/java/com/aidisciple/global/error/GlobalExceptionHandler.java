@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -25,7 +26,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(BusinessException.class)
 	ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
 		ErrorCode code = e.getErrorCode();
-		return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code, e.getMessage()));
+		return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code, e.getMessage(), e.getDetails()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
@@ -69,6 +70,12 @@ public class GlobalExceptionHandler {
 	})
 	ResponseEntity<ErrorResponse> handleBadRequest(Exception e) {
 		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus()).body(ErrorResponse.of(ErrorCode.INVALID_INPUT));
+	}
+
+	/** 업로드 크기 제한({@code spring.servlet.multipart})을 넘은 요청. 컨트롤러에 닿기 전에 걸리므로 여기서 받는다. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+		return ResponseEntity.status(ErrorCode.MATERIAL_TOO_LARGE.getStatus()).body(ErrorResponse.of(ErrorCode.MATERIAL_TOO_LARGE));
 	}
 
 	/** 없는 경로. 이 핸들러가 없으면 아래 마지막 방어선에 걸려 500 이 된다. (예: 운영 프로필의 dev-login) */

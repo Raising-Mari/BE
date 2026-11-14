@@ -31,6 +31,12 @@ public class JwtProvider {
 	private static final String PURPOSE_CLAIM = "purpose";
 	private static final String ROLE_CLAIM = "role";
 	private static final String ACCESS_PURPOSE = "access";
+	private static final String SIGNUP_PURPOSE = "signup";
+	private static final String EMAIL_CLAIM = "email";
+	private static final String SCHOOL_CLAIM = "schoolId";
+
+	/** 가입 토큰은 Google 로그인 직후 가입 화면을 채우는 짧은 시간만 쓴다. */
+	private static final Duration SIGNUP_EXPIRES_IN = Duration.ofMinutes(10);
 
 	private final SecretKey key;
 	private final Duration expiresIn;
@@ -65,14 +71,49 @@ public class JwtProvider {
 
 	/** 서명·만료·용도가 모두 맞는 토큰만 사용자로 돌려준다. 실패 이유는 밖으로 알리지 않는다. */
 	public Optional<AuthUser> parseAccessToken(String token) {
-		try {
-			Claims claims = parser.parseSignedClaims(token).getPayload();
-			if (!ACCESS_PURPOSE.equals(claims.get(PURPOSE_CLAIM, String.class))) {
+		return parse(token, ACCESS_PURPOSE).flatMap(claims -> {
+			try {
+				long userId = Long.parseLong(claims.getSubject());
+				UserRole role = UserRole.valueOf(claims.get(ROLE_CLAIM, String.class));
+				return Optional.of(new AuthUser(userId, role));
+			} catch (IllegalArgumentException e) {
 				return Optional.empty();
 			}
-			long userId = Long.parseLong(claims.getSubject());
-			UserRole role = UserRole.valueOf(claims.get(ROLE_CLAIM, String.class));
-			return Optional.of(new AuthUser(userId, role));
+		});
+	}
+
+	/**
+	 * 가입 토큰. Google 이 확인해 준 계정 정보를 10분 동안 가입 요청까지 실어 나른다.
+	 * 한 번만 쓸 수 있다는 규칙은 토큰이 아니라 {@code users.google_sub} UNIQUE 와 가입 서비스의 중복 검사가 지킨다.
+	 */
+	public String issueSignupToken(String googleSub, String email, long schoolId) {
+		Instant now = clock.instant();
+		return Jwts.builder()
+			.subject(googleSub)
+			.claim(PURPOSE_CLAIM, SIGNUP_PURPOSE)
+			.claim(EMAIL_CLAIM, email)
+			.claim(SCHOOL_CLAIM, schoolId)
+			.issuedAt(Date.from(now))
+			.expiration(Date.from(now.plus(SIGNUP_EXPIRES_IN)))
+			.signWith(key)
+			.compact();
+	}
+
+	public Optional<SignupClaims> parseSignupToken(String token) {
+		return parse(token, SIGNUP_PURPOSE).flatMap(claims -> {
+			Object school = claims.get(SCHOOL_CLAIM);
+			String email = claims.get(EMAIL_CLAIM, String.class);
+			if (claims.getSubject() == null || email == null || !(school instanceof Number schoolId)) {
+				return Optional.empty();
+			}
+			return Optional.of(new SignupClaims(claims.getSubject(), email, schoolId.longValue()));
+		});
+	}
+
+	private Optional<Claims> parse(String token, String purpose) {
+		try {
+			Claims claims = parser.parseSignedClaims(token).getPayload();
+			return purpose.equals(claims.get(PURPOSE_CLAIM, String.class)) ? Optional.of(claims) : Optional.empty();
 		} catch (JwtException | IllegalArgumentException e) {
 			return Optional.empty();
 		}

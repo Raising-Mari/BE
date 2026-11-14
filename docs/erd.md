@@ -92,7 +92,7 @@ erDiagram
 | `battle_participants.status` | `JOINED`, `READY` |
 | `battle_participants.solve_status` | `PENDING`, `SOLVING`, `SOLVED`, `FAILED` |
 | `battle_participants.result` | `WIN`, `LOSE`, `DRAW`. `PRACTICE` 배틀은 NULL (노트가 1개 이상이어야 배틀이 시작되므로 둘 다 노트가 0개인 경우는 없다) |
-| `battle_answers.verdict` | `CORRECT`, `PARTIAL`(부분 정답 — LLM 판정에서만 나온다), `WRONG`, `UNKNOWN`(모름), `ZEROED_INJECTION`(지시문 의심 0점), `UNJUDGED`(판정 실패) |
+| `battle_answers.verdict` | `CORRECT`, `PARTIAL`(부분 정답 — LLM 판정에서만 나온다), `WRONG`, `UNKNOWN`(모름), `ZEROED_INJECTION`(지시문 의심 0점), `UNJUDGED`(판정 실패), `PENDING`(풀이는 끝났지만 아직 채점 전 — 채점이 다른 값으로 바꾸므로 끝난 배틀에는 남지 않는다. 2026-11-09, WP8) |
 | `battle_answers.judged_by` | `CODE`, `LLM` |
 | 원인 `cause_suggestion`·`user_cause` | `NOT_TAUGHT`(가르치지 않음: 말한 적 없음), `NOT_IN_NOTES`(노트에 없음: 말했지만 노트로 안 남음), `NOTE_WRONG`(노트가 틀림), `NOT_APPLIED`(노트는 맞는데 제자가 못 씀), `OTHER` |
 | `reports.kind` | `QUESTION`(문항 문제), `GRADING`(채점·AI 진단 이의) |
