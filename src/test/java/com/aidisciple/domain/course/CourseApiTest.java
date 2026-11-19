@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.jayway.jsonpath.JsonPath;
@@ -29,6 +30,15 @@ import com.aidisciple.domain.auth.repository.UserRepository;
 import com.aidisciple.domain.auth.security.JwtProvider;
 import com.aidisciple.domain.course.entity.Course;
 import com.aidisciple.domain.course.repository.CourseRepository;
+import com.aidisciple.domain.material.entity.Material;
+import com.aidisciple.domain.material.entity.MaterialSourceType;
+import com.aidisciple.domain.material.entity.MaterialUnit;
+import com.aidisciple.domain.material.repository.MaterialRepository;
+import com.aidisciple.domain.material.repository.MaterialUnitRepository;
+import com.aidisciple.domain.teaching.entity.ChatMessage;
+import com.aidisciple.domain.teaching.entity.NoteEntry;
+import com.aidisciple.domain.teaching.repository.ChatMessageRepository;
+import com.aidisciple.domain.teaching.repository.NoteEntryRepository;
 import com.aidisciple.global.security.UserRole;
 
 /**
@@ -58,6 +68,18 @@ class CourseApiTest {
 
 	@Autowired
 	JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	ChatMessageRepository chatMessageRepository;
+
+	@Autowired
+	NoteEntryRepository noteEntryRepository;
+
+	@Autowired
+	MaterialRepository materialRepository;
+
+	@Autowired
+	MaterialUnitRepository materialUnitRepository;
 
 	private String suffix;
 	private long schoolId;
@@ -263,6 +285,67 @@ class CourseApiTest {
 			.andExpect(jsonPath("$[0].title").value("1주차"))
 			.andExpect(jsonPath("$[1].title").value("2주차"))
 			.andExpect(jsonPath("$[2].title").value("10주차"));
+	}
+
+	@Test
+	void 주차_목록은_내_노트_수와_연결된_DONE_자료_수를_채운다() throws Exception {
+		long courseId = idOf(createCourse(token, "현황과목" + suffix, "2026-2"));
+		String unitsPath = "/api/courses/" + courseId + "/units";
+		long first = idOf(createUnit(unitsPath, "1주차"));
+		long second = idOf(createUnit(unitsPath, "2주차"));
+		long discipleId = idOf(mockMvc.perform(post("/api/courses/" + courseId + "/disciple")
+				.header("Authorization", token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\": \"마리\"}"))
+			.andExpect(status().isCreated()));
+
+		// 1주차: ACTIVE 노트 2개 + 고쳐서 대체된 노트 1개(세지 않는다). 2주차: 노트 없음
+		int turn = 0;
+		for (String content : new String[] {"스택은 후입선출이야", "큐는 선입선출이야", "예전에 잘못 가르친 내용이야"}) {
+			ChatMessage message = chatMessageRepository.saveAndFlush(
+				ChatMessage.student(discipleId, first, ++turn, content, UUID.randomUUID().toString()));
+			NoteEntry note = noteEntryRepository.saveAndFlush(
+				NoteEntry.create(discipleId, first, content, content, message.getId(), null, 1, "{}"));
+			if (turn == 3) {
+				note.supersede();
+				noteEntryRepository.saveAndFlush(note);
+			}
+		}
+		// 자료: DONE 하나는 1주차·2주차에, 처리 중인 하나는 1주차에 연결
+		Material done = materialRepository.saveAndFlush(newMaterial(courseId));
+		done.complete(100, 5, Instant.now());
+		materialRepository.saveAndFlush(done);
+		Material processing = materialRepository.saveAndFlush(newMaterial(courseId));
+		materialUnitRepository.saveAllAndFlush(List.of(MaterialUnit.link(done.getId(), first),
+			MaterialUnit.link(done.getId(), second), MaterialUnit.link(processing.getId(), first)));
+
+		mockMvc.perform(get(unitsPath).header("Authorization", token))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].id").value(first))
+			.andExpect(jsonPath("$[0].myNoteCount").value(2))
+			.andExpect(jsonPath("$[0].materialCount").value(1))
+			.andExpect(jsonPath("$[1].id").value(second))
+			.andExpect(jsonPath("$[1].myNoteCount").value(0))
+			.andExpect(jsonPath("$[1].materialCount").value(1));
+
+		// 노트 수는 "내" 것이다: 같은 학교 친구는 이 과목에 제자가 없어 0이다
+		String friendToken = bearer(newUser("f"));
+		mockMvc.perform(get(unitsPath).header("Authorization", friendToken))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].myNoteCount").value(0))
+			.andExpect(jsonPath("$[0].materialCount").value(1));
+	}
+
+	private ResultActions createUnit(String path, String title) throws Exception {
+		return mockMvc.perform(post(path)
+				.header("Authorization", token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"title\": \"" + title + "\"}"))
+			.andExpect(status().isCreated());
+	}
+
+	private Material newMaterial(long courseId) {
+		return Material.accept(courseId, userId, "자료" + suffix, MaterialSourceType.TEXT, "a.txt", 10L, Instant.now());
 	}
 
 	@Test
