@@ -18,7 +18,7 @@
 - 과목은 (학교, 정규화한 이름, 학기)가, 주차는 (과목, 정규화한 이름)이, 제자는 (사용자, 과목)이 유일하다. 서비스에서 먼저 확인하고, 동시에 겹치는 경우는 DB UNIQUE가 마지막으로 막는다(`DataIntegrityViolationException` → 중복 코드).
 - 중복 오류에는 기존 것의 id를 `details`로 함께 준다(`existingCourseId`, `existingUnitId`). FE가 새로 만들지 않고 그쪽으로 이동하게 하기 위함이다. 동시 경합으로 걸린 경우에는 기존 id를 싣지 않는다.
 - 주차는 과목 안에서 모든 학생이 공유한다. 주차를 만들 때 제자(수강 등록)는 필요 없다.
-- 주차 목록의 `materialCount`·`myNoteCount`·`battleReady`는 해당 기능(자료 WP5·노트 6-B·문제 은행 WP7)이 들어오기 전까지 0·0·false다. 각 기능이 들어올 때 **그 도메인의 서비스를 불러** `UnitService.list`를 채운다. 그 도메인의 저장소를 직접 조회하지 않는다.
+- 주차 목록의 `materialCount`·`myNoteCount`·`battleReady`는 `UnitService.list`가 `UnitMaterialCountLookup`·`UnitNoteCountLookup`·`UnitBattleReadyLookup`으로 채운다. 이 인터페이스는 course에 있고 **구현은 material·teaching·question이 한다**(course가 그 도메인을 import하면 teaching → course 와 맞물려 순환이 생기기 때문). 새 기능이 주차 목록에 값을 더 싣게 되면 같은 방식으로 한다. (이 값들이 기능이 들어온 뒤에도 0으로 남아 노트가 있는데 배틀이 막힌 적이 있다 — 2026-11-19 수정.) 방금 만든 주차(C-06)의 응답만 0·0·false 고정이다.
 - 단원은 학생이 만들고 고르는 것이다. 서버가 자료에서 뽑은 개념 목록으로 단원을 대신 정해 주지 않는다.
 - 과목 보관(`ARCHIVED`)과 시연용 과목은 SQL로 처리한다. 보관된 과목은 검색에서만 빠진다.
 - 시연용 과목은 공개 자료로만 만든다. (아직 미정)

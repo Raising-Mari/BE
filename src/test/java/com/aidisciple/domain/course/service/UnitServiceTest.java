@@ -2,14 +2,19 @@ package com.aidisciple.domain.course.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +40,11 @@ class UnitServiceTest {
 	private final UnitRepository unitRepository = mock(UnitRepository.class);
 	private final CourseService courseService = mock(CourseService.class);
 	private final UserLookupService userLookupService = mock(UserLookupService.class);
-	private final UnitService service = new UnitService(unitRepository, courseService, userLookupService);
+	private final UnitNoteCountLookup noteCountLookup = mock(UnitNoteCountLookup.class);
+	private final UnitMaterialCountLookup materialCountLookup = mock(UnitMaterialCountLookup.class);
+	private final UnitBattleReadyLookup battleReadyLookup = mock(UnitBattleReadyLookup.class);
+	private final UnitService service = new UnitService(unitRepository, courseService, userLookupService,
+		noteCountLookup, materialCountLookup, battleReadyLookup);
 
 	private final UserRef user = new UserRef(USER_ID, 1L, null);
 
@@ -77,8 +86,28 @@ class UnitServiceTest {
 	}
 
 	@Test
-	void 자료_노트_배틀_현황은_해당_기능이_생기기_전까지_0_0_false다() {
+	void 자료_수_내_노트_수_배틀_가능_여부를_주차마다_채운다() {
+		when(unitRepository.findByCourseId(COURSE_ID)).thenReturn(List.of(unit(1, "1주차"), unit(2, "2주차"), unit(3, "3주차")));
+		when(noteCountLookup.activeNoteCounts(USER_ID, COURSE_ID)).thenReturn(Map.of(1L, 4L, 3L, 1L));
+		when(materialCountLookup.doneMaterialCounts(List.of(1L, 2L, 3L))).thenReturn(Map.of(1L, 2L));
+		when(battleReadyLookup.battleReadyUnits(USER_ID, List.of(1L, 2L, 3L), UnitService.BATTLE_READY_QUESTION_COUNT))
+			.thenReturn(Set.of(1L, 2L));
+
+		List<UnitResponse> units = service.list(USER_ID, COURSE_ID);
+
+		assertThat(units).extracting(UnitResponse::id, UnitResponse::materialCount, UnitResponse::myNoteCount, UnitResponse::battleReady)
+			.containsExactly(
+				tuple(1L, 2L, 4L, true),
+				tuple(2L, 0L, 0L, true),   // 값이 없는 주차는 0
+				tuple(3L, 0L, 1L, false));
+	}
+
+	@Test
+	void 조회_결과가_없으면_0_0_false다() {
 		when(unitRepository.findByCourseId(COURSE_ID)).thenReturn(List.of(unit(1, "1주차")));
+		when(noteCountLookup.activeNoteCounts(USER_ID, COURSE_ID)).thenReturn(Map.of());
+		when(materialCountLookup.doneMaterialCounts(List.of(1L))).thenReturn(Map.of());
+		when(battleReadyLookup.battleReadyUnits(USER_ID, List.of(1L), UnitService.BATTLE_READY_QUESTION_COUNT)).thenReturn(Set.of());
 
 		UnitResponse response = service.list(USER_ID, COURSE_ID).get(0);
 
@@ -88,10 +117,25 @@ class UnitServiceTest {
 	}
 
 	@Test
-	void 주차가_없으면_빈_목록이다() {
+	void 목록은_정렬한_순서로_주고_조회도_그_주차들에_대해서만_한다() {
+		when(unitRepository.findByCourseId(COURSE_ID)).thenReturn(List.of(unit(1, "10주차"), unit(2, "2주차")));
+		when(noteCountLookup.activeNoteCounts(USER_ID, COURSE_ID)).thenReturn(Map.of(1L, 7L));
+
+		List<UnitResponse> units = service.list(USER_ID, COURSE_ID);
+
+		assertThat(units).extracting(UnitResponse::id).containsExactly(2L, 1L);
+		assertThat(units).extracting(UnitResponse::myNoteCount).containsExactly(0L, 7L);   // 노트 수가 id 로 맞게 붙는다
+		verify(materialCountLookup).doneMaterialCounts(List.of(2L, 1L));
+	}
+
+	@Test
+	void 주차가_없으면_빈_목록이고_다른_도메인을_부르지_않는다() {
 		when(unitRepository.findByCourseId(COURSE_ID)).thenReturn(List.of());
 
 		assertThat(service.list(USER_ID, COURSE_ID)).isEmpty();
+		verify(noteCountLookup, never()).activeNoteCounts(anyLong(), anyLong());
+		verify(materialCountLookup, never()).doneMaterialCounts(any());
+		verify(battleReadyLookup, never()).battleReadyUnits(anyLong(), any(), anyInt());
 	}
 
 	@Test

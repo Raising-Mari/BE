@@ -122,9 +122,7 @@ public class QuestionBankService {
 
 	/** 배틀에 쓸 수 있는 상태. UNJUDGED 는 설정이 켜졌을 때만 (api-spec 11-2) */
 	List<QuestionStatus> usableStatuses() {
-		return properties.allowUnjudged()
-			? List.of(QuestionStatus.VERIFIED, QuestionStatus.UNJUDGED)
-			: List.of(QuestionStatus.VERIFIED);
+		return properties.usableStatuses();
 	}
 
 }
