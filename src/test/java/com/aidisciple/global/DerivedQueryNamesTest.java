@@ -17,6 +17,10 @@ import com.aidisciple.domain.battle.entity.Battle;
 import com.aidisciple.domain.battle.entity.BattleParticipant;
 import com.aidisciple.domain.battle.repository.BattleParticipantRepository;
 import com.aidisciple.domain.battle.repository.BattleRepository;
+import com.aidisciple.domain.material.entity.MaterialUnit;
+import com.aidisciple.domain.material.repository.MaterialUnitRepository;
+import com.aidisciple.domain.teaching.entity.NoteEntry;
+import com.aidisciple.domain.teaching.repository.NoteEntryRepository;
 import com.aidisciple.domain.ranking.entity.EloHistory;
 import com.aidisciple.domain.ranking.entity.EloRating;
 import com.aidisciple.domain.ranking.repository.EloHistoryRepository;
@@ -53,6 +57,16 @@ class DerivedQueryNamesTest {
 	void 배틀_리포지토리의_메서드_이름이_엔티티_속성과_맞는다() {
 		assertAllDerivedNamesParse(BattleRepository.class, Battle.class);
 		assertAllDerivedNamesParse(BattleParticipantRepository.class, BattleParticipant.class);
+	}
+
+	@Test
+	void 자료_연결_리포지토리의_메서드_이름이_엔티티_속성과_맞는다() {
+		assertAllDerivedNamesParse(MaterialUnitRepository.class, MaterialUnit.class);
+	}
+
+	@Test
+	void 노트_리포지토리의_메서드_이름이_엔티티_속성과_맞는다() {
+		assertAllDerivedNamesParse(NoteEntryRepository.class, NoteEntry.class);
 	}
 
 	@Test

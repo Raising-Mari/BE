@@ -37,18 +37,35 @@ public class UnitService {
 	private final UnitRepository unitRepository;
 	private final CourseService courseService;
 	private final UserLookupService userLookupService;
+	private final UnitNoteCountLookup noteCountLookup;
+	private final UnitMaterialCountLookup materialCountLookup;
+	private final UnitBattleReadyLookup battleReadyLookup;
+
+	/** battleReady 를 판단하는 문항 수. B-01 에서 문항 수를 생략했을 때의 기본값(5)과 같아야 한다. */
+	static final int BATTLE_READY_QUESTION_COUNT = 5;
 
 	/**
 	 * C-05. 숫자를 값으로 비교한 순서로 준다("2주차"가 "10주차"보다 앞).
-	 * 자료 수(WP5)·내 노트 수(WP6)·배틀 가능 여부(WP7)는 그 기능이 생길 때까지 만들어질 수 없는 값이라 지금은 0, 0, false 다.
-	 * 각 기능이 들어올 때 해당 도메인의 서비스를 불러 채운다.
+	 * 자료 수·내 노트 수·배틀 가능 여부는 각 도메인이 구현한 조회 인터페이스로 채운다(도메인 경계: 저장소를 직접 조회하지 않는다).
 	 */
 	public List<UnitResponse> list(long userId, long courseId) {
 		UserRef user = userLookupService.requireActive(userId);
 		Course course = courseService.requireVisible(courseId, user);
-		return unitRepository.findByCourseId(course.getId()).stream()
+		List<Unit> units = unitRepository.findByCourseId(course.getId()).stream()
 			.sorted(Comparator.comparing(Unit::getTitle, UnitTitleOrder::compare).thenComparing(Unit::getId))
-			.map(UnitService::toResponse)
+			.toList();
+		if (units.isEmpty()) {
+			return List.of();
+		}
+		List<Long> unitIds = units.stream().map(Unit::getId).toList();
+		Map<Long, Long> noteCounts = noteCountLookup.activeNoteCounts(userId, course.getId());
+		Map<Long, Long> materialCounts = materialCountLookup.doneMaterialCounts(unitIds);
+		Set<Long> battleReady = battleReadyLookup.battleReadyUnits(userId, unitIds, BATTLE_READY_QUESTION_COUNT);
+		return units.stream()
+			.map(unit -> new UnitResponse(unit.getId(), unit.getTitle(),
+				materialCounts.getOrDefault(unit.getId(), 0L),
+				noteCounts.getOrDefault(unit.getId(), 0L),
+				battleReady.contains(unit.getId())))
 			.toList();
 	}
 
@@ -68,7 +85,7 @@ public class UnitService {
 			});
 
 		try {
-			return toResponse(unitRepository.saveAndFlush(Unit.create(course.getId(), title, normalizedTitle, userId)));
+			return toNewUnitResponse(unitRepository.saveAndFlush(Unit.create(course.getId(), title, normalizedTitle, userId)));
 		} catch (DataIntegrityViolationException e) {
 			// 동시에 같은 이름을 만든 두 요청 중 늦은 쪽
 			throw new BusinessException(ErrorCode.UNIT_DUPLICATE);
@@ -108,7 +125,8 @@ public class UnitService {
 		return new UnitRef(unit.getId(), unit.getCourseId(), unit.getTitle());
 	}
 
-	private static UnitResponse toResponse(Unit unit) {
+	/** 방금 만든 주차용 — 자료·노트·문항이 아직 있을 수 없으므로 0, 0, false 가 맞다. */
+	private static UnitResponse toNewUnitResponse(Unit unit) {
 		return new UnitResponse(unit.getId(), unit.getTitle(), 0, 0, false);
 	}
 
